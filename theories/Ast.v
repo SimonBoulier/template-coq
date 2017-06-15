@@ -54,7 +54,8 @@ Inductive term : Set :=
 (*
 | CoFix     of ('constr, 'types) pcofixpoint
 *)
-| tUnknown : string -> term.
+| tUnknown : string -> term
+| tHole : term.
 
 Record inductive_body := mkinductive_body
 { ctors : list (ident * term * nat (* arity, w/o lets, w/o parameters *)) }.
