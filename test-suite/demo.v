@@ -66,6 +66,11 @@ Quote Definition add'_syntax := Eval compute in add'.
 
 Make Definition zero_from_syntax := (Ast.tConstruct (Ast.mkInd "Coq.Init.Datatypes.nat" 0) 0).
 
+Definition zero_from_syntax' : nat.
+  denote_term (Ast.tConstruct (Ast.mkInd "Coq.Init.Datatypes.nat" 0) 0)
+              (fun x => exact x).
+Defined.
+
 Make Definition eo_from_syntax := 
 ltac:(let t:= eval compute in eo_syntax in exact t).
 Print eo_from_syntax.
