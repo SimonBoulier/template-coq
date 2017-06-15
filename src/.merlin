@@ -1,20 +1,52 @@
-B /home/rascar/Dépôts/coq/config
-B /home/rascar/Dépôts/coq/lib
-B /home/rascar/Dépôts/coq/intf
-B /home/rascar/Dépôts/coq/kernel
-B /home/rascar/Dépôts/coq/kernel/byterun
-B /home/rascar/Dépôts/coq/library
-B /home/rascar/Dépôts/coq/engine
-B /home/rascar/Dépôts/coq/pretyping
-B /home/rascar/Dépôts/coq/interp
-B /home/rascar/Dépôts/coq/proofs
-B /home/rascar/Dépôts/coq/tactics
-B /home/rascar/Dépôts/coq/printing
-B /home/rascar/Dépôts/coq/parsing
-B /home/rascar/Dépôts/coq/toplevel
-B /home/rascar/Dépôts/coq/plugins/funind
-B /home/rascar/Dépôts/coq/plugins/ltac
+FLG -rectypes -thread -safe-string -w +a-4-9-27-41-42-44-45-48-50
 
+S /home/rascar/Dépôts/coq/config
+B /home/rascar/Dépôts/coq/config
+S /home/rascar/Dépôts/coq/ide
+B /home/rascar/Dépôts/coq/ide
+S /home/rascar/Dépôts/coq/lib
+B /home/rascar/Dépôts/coq/lib
+S /home/rascar/Dépôts/coq/intf
+B /home/rascar/Dépôts/coq/intf
+S /home/rascar/Dépôts/coq/kernel
+B /home/rascar/Dépôts/coq/kernel
+S /home/rascar/Dépôts/coq/kernel/byterun
+B /home/rascar/Dépôts/coq/kernel/byterun
+S /home/rascar/Dépôts/coq/library
+B /home/rascar/Dépôts/coq/library
+S /home/rascar/Dépôts/coq/engine
+B /home/rascar/Dépôts/coq/engine
+S /home/rascar/Dépôts/coq/pretyping
+B /home/rascar/Dépôts/coq/pretyping
+S /home/rascar/Dépôts/coq/interp
+B /home/rascar/Dépôts/coq/interp
+S /home/rascar/Dépôts/coq/proofs
+B /home/rascar/Dépôts/coq/proofs
+S /home/rascar/Dépôts/coq/tactics
+B /home/rascar/Dépôts/coq/tactics
+S /home/rascar/Dépôts/coq/printing
+B /home/rascar/Dépôts/coq/printing
+S /home/rascar/Dépôts/coq/parsing
+B /home/rascar/Dépôts/coq/parsing
+S /home/rascar/Dépôts/coq/stm
+B /home/rascar/Dépôts/coq/stm
+S /home/rascar/Dépôts/coq/toplevel
+B /home/rascar/Dépôts/coq/toplevel
+S /home/rascar/Dépôts/coq/vernac
+B /home/rascar/Dépôts/coq/vernac
+S /home/rascar/Dépôts/coq/plugins/ltac
+B /home/rascar/Dépôts/coq/plugins/ltac
+S /home/rascar/Dépôts/coq/API
+B /home/rascar/Dépôts/coq/API
+
+S /home/rascar/Dépôts/coq/tools
 B /home/rascar/Dépôts/coq/tools
+S /home/rascar/Dépôts/coq/tools/coqdoc
 B /home/rascar/Dépôts/coq/tools/coqdoc
+S /home/rascar/Dépôts/coq/dev
 B /home/rascar/Dépôts/coq/dev
+
+S /home/rascar/Dépôts/coq/plugins/**
+B /home/rascar/Dépôts/coq/plugins/**
+
+PKG threads.posix camlp5
