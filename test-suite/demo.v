@@ -71,6 +71,16 @@ Definition zero_from_syntax' : nat.
               (fun x => exact x).
 Defined.
 
+
+(** Possibility to leave holes in a term. *)
+Make Definition t :=
+  (Ast.tApp (Ast.tConstruct (Ast.mkInd "Coq.Init.Datatypes.prod" 0) 0)
+   (Ast.tHole
+    :: (Ast.tHole
+        :: Ast.tConstruct (Ast.mkInd "Coq.Init.Datatypes.nat" 0) 0
+           :: Ast.tConstruct (Ast.mkInd "Coq.Init.Datatypes.bool" 0) 0
+              :: nil)%list)).
+
 Make Definition eo_from_syntax := 
 ltac:(let t:= eval compute in eo_syntax in exact t).
 Print eo_from_syntax.
