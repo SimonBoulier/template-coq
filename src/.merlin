@@ -1,0 +1,20 @@
+B /home/rascar/Dépôts/coq/config
+B /home/rascar/Dépôts/coq/lib
+B /home/rascar/Dépôts/coq/intf
+B /home/rascar/Dépôts/coq/kernel
+B /home/rascar/Dépôts/coq/kernel/byterun
+B /home/rascar/Dépôts/coq/library
+B /home/rascar/Dépôts/coq/engine
+B /home/rascar/Dépôts/coq/pretyping
+B /home/rascar/Dépôts/coq/interp
+B /home/rascar/Dépôts/coq/proofs
+B /home/rascar/Dépôts/coq/tactics
+B /home/rascar/Dépôts/coq/printing
+B /home/rascar/Dépôts/coq/parsing
+B /home/rascar/Dépôts/coq/toplevel
+B /home/rascar/Dépôts/coq/plugins/funind
+B /home/rascar/Dépôts/coq/plugins/ltac
+
+B /home/rascar/Dépôts/coq/tools
+B /home/rascar/Dépôts/coq/tools/coqdoc
+B /home/rascar/Dépôts/coq/dev
