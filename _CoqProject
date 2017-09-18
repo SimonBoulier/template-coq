@@ -12,3 +12,5 @@ theories/LiftSubst.v
 theories/WeakSubst.v
 theories/Typing.v
 theories/Checker.v
+
+theories/trad.v

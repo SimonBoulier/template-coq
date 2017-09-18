@@ -694,6 +694,17 @@ struct
 
 end
 
+
+let kn_of_canonical_string s =
+  let ss = List.rev (Str.split (Str.regexp (Str.quote ".")) s) in
+  match ss with
+    nm :: rst ->
+    let rec to_mp ls = Names.MPfile (Names.make_dirpath (List.map Names.id_of_string ls)) in
+    let mp = to_mp rst in
+    Names.make_kn mp Names.empty_dirpath (Names.mk_label nm)
+  | _ -> assert false
+
+  
 module Denote =
 struct
 
@@ -788,15 +799,6 @@ struct
       Term.set_sort
     else
       raise (Failure "ill-typed, expected sort")
-
-  let kn_of_canonical_string s =
-    let ss = List.rev (Str.split (Str.regexp (Str.quote ".")) s) in
-    match ss with
-      nm :: rst ->
-	let rec to_mp ls = Names.MPfile (Names.make_dirpath (List.map Names.id_of_string ls)) in
-	let mp = to_mp rst in
-	Names.make_kn mp Names.empty_dirpath (Names.mk_label nm)
-    | _ -> assert false
 
   let denote_inductive trm =
     let (h,args) = app_full trm [] in

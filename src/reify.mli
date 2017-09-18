@@ -65,3 +65,4 @@ module Reify(Q : Quoter) : sig
   val quote_term_rec : Environ.env -> Constr.t -> Q.quoted_program
 end
   
+val kn_of_canonical_string : string -> Names.kernel_name

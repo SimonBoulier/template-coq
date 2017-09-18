@@ -143,4 +143,5 @@ end
 
 module TemplateASTReifier = Reify(TemplateASTQuoter)
 
+include TemplateASTQuoter
 include TemplateASTReifier

@@ -56,3 +56,9 @@ src/induction.ml
 src/induction.mli
 src/liftSubst.ml
 src/liftSubst.mli
+src/trad.ml
+src/trad.mli
+.merlin
+.hidden
+Makefile.translation
+.dir-locals.el

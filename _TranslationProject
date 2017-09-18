@@ -1,0 +1,18 @@
+-R theories Template
+-I src
+-arg -type-in-type
+
+src/trad.mli
+src/trad.ml
+
+src/mTranslate.mli
+src/mTranslate.ml
+src/mPlugin.mli
+src/mPlugin.ml
+src/translation_plugin.ml4
+src/translation_plugin_mod.ml
+src/translation_plugin.mllib
+
+theories/Translation.v
+
+test-suite/TestFun.v

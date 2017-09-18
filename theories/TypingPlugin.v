@@ -1,3 +1,4 @@
+Add ML Path "/home/rascar/Dépôts/template-coq/src".
 From Template Require Import Ast Typing Checker.
 
 Require Import ExtrOcamlBasic.
@@ -14,3 +15,5 @@ Extraction Library Induction.
 Extraction Library LiftSubst.
 Extraction Library Typing.
 Extraction Library Checker.
+
+(* Print ML Path. *)
