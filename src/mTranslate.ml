@@ -273,6 +273,7 @@ let translate_type env global_ctx tsl_ctx sigma c =
   (* Feedback.msg_debug (str (dump c)); *)
   Feedback.msg_debug (Printer.pr_constr_env env sigma c);
   Feedback.msg_debug (str"_ Translated term:");
+  (* Feedback.msg_debug (str (dump c')); *)
   (* Feedback.msg_debug (str (dump c'')); *)
   Feedback.msg_debug (Printer.pr_constr_env env sigma c'');
   Feedback.msg_debug (str"_ Env:");

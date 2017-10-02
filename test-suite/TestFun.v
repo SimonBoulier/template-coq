@@ -191,23 +191,86 @@ exact (mk_sig unit (fun _ => unit)).
 Defined.
 Print unitᵗ.
 
-Set Printing Universes.
-Translate sigma.
+Translate tt.
+unshelve econstructor. exact tt. exact tt.
+Defined.
+
+(* Translate tt. *)
+
+Implement ttt : unit.
 cbn.
-refine (@mk_sig _ _ _ _).
 econstructor.
+exact tt. exact tt.
+Defined.
+Print tttᵗ.
+
+Notation "'TType'" := (sigma Type (fun A => A -> Type)).
+Notation "'El' A" := (sigma (π1 A) (π2 A)) (at level 20).
+
+Definition sigma1 (A : sigma Type (fun A => A -> Type))
+           (B : sigma (sigma (π1 A) (π2 A) -> Type)
+                      (fun f => forall x, f x -> Type)) : Type
+  := sigma (sigma (π1 A) (π2 A))
+           (fun w => sigma (π1 B w) (π2 B w)).
+
+Definition mk_sig1 (A : sigma Type (fun A => A -> Type))
+           (B : sigma (sigma (π1 A) (π2 A) -> Type)
+                      (fun f => forall x, f x -> Type))
+           (x : sigma (π1 A) (π2 A))
+           (y : sigma (π1 B x) (π2 B x))
+  : sigma1 A B
+  := mk_sig x y.
+
+Inductive sigma2 (A : sigma Type (fun A => A -> Type))
+          (B : sigma (sigma (π1 A) (π2 A) -> Type)
+                     (fun f => forall x, f x -> Type))
+  : sigma1 A B -> Type :=
+| mk_sig2 : forall (x : sigma (π1 A) (π2 A))
+              (y : sigma (π1 B x) (π2 B x)), sigma2 _ _ (mk_sig1 _ _ x y).
+
+Translate sigma.
+unshelve econstructor.
+exact sigma1.
+exact sigma2.
+Defined.
+
+Inductive eq2 (A : TType) (x : El A) :
+  forall (y : El A), eq (π1 x) (π1 y) -> Type :=
+| refl2 : eq2 A x x eq_refl.
+
+  (* forall (A : TType) (x H : El A), x = H -> Prop *)
 
 Translate eq.
+unshelve econstructor.
+exact (fun A x y => π1 x = π1 y).
+cbn. exact eq2.
+Defined.
 
-Definition equiv A B :=
+
+(* Translate unit. *)
+(* exists unit. intro; exact unit. *)
+(* Defined. *)
+
+Definition equiv (A B : Type) :=
   sigma (A -> B)
         (fun f => sigma (B -> A)
                      (fun g => forall x, g (f x) = x)).
-
 Translate equiv.
 
-Implement notUnivalence : exists 
+Definition eq' := @unit.
+Translate eq'.
 
+Implement notUnivalence : eq'.
+  sigma Type
+        (fun A => sigma Type
+                     (fun B => (equiv A B))).
+                                  (fun _ => Type))).
+
+
+
+
+
+    
 Translate sigma.
 Translate pair.
 (* Translate fst'. *)
