@@ -19,6 +19,6 @@ VERNAC COMMAND EXTEND TransImplementation CLASSIFIED BY classify_impl
 END
 
 VERNAC COMMAND EXTEND TransImplementationEx CLASSIFIED BY classify_impl
-| [ "Implement" "Existing" global(gr) ] -> [ MPlugin.translate gr None ]
-| [ "Implement" "Existing" global(gr) "as" ident(id') ] -> [ MPlugin.translate gr (Some id') ]
+| [ "Implement" "Existing" global(gr) ] -> [ MPlugin.implement_existing gr None ]
+| [ "Implement" "Existing" global(gr) "as" ident(id') ] -> [ MPlugin.implement_existing gr (Some id') ]
 END
