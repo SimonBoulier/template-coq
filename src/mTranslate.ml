@@ -155,39 +155,23 @@ let unquote_name : Ast0.name -> Names.Name.t = function
   | Coq_nAnon -> Anonymous
   | Coq_nNamed i -> Name (unquote_ident i)
                          
-let unquote_sort env sigma s =
+let unquote_sort sigma s =
   match s with
   | Coq_sProp -> sigma, Term.mkProp
   | Coq_sSet -> sigma, Term.mkSet
-  | Coq_sType _ -> let sigma, s' = Evd.new_sort_variable Evd.univ_flexible sigma in sigma, mkSort s'
-     
-    (* let (h,args) = app_full trm [] in *)
-    (* if Term.eq_constr h sType then *)
-    (*   Term.destSort (Evarutil.new_Type (Global.env ()) evdref) *)
-    (* else if Term.eq_constr h sProp then *)
-    (*   Term.prop_sort *)
-    (* else if Term.eq_constr h sSet then *)
-    (*   Term.set_sort *)
-    (* else *)
-(*   raise (Failure "ill-typed, expected sort") *)
+  | Coq_sType _ -> let sigma, s' = Evd.new_sort_variable Evd.univ_flexible sigma in
+                   (* Global.push_context false (snd (Evd.universe_context sigma)); *)
+                   sigma, mkSort s'
 
 let unquote_cast = function
   | VmCast -> VMcast
   | NativeCast -> NATIVEcast
   | Cast -> DEFAULTcast
   | RevertCast -> REVERTcast
-
-(* let unquote_proj (((Coq_mkInd (s, l),n),k) : Ast0.projection) : Names.projection = *)
-(*   let s' = unquote_ident s in *)
-(*   let l' = unquote_nat l in *)
-(*   let n' = unquote_nat n in *)
-(*   let k' = unquote_nat k in *)
-(*   let ind = Global.lookup_ (Names.MutInd.make1 *)
-(*   () *)
                     
                                     
 let sigma_map (f : 's -> 'a -> 's * 'b) (s : 's) (l : 'a list) : 's * ('b list) =
-  let s, l' = List.fold_left (fun (s', l) a -> let s'', b = f s a in s'', b :: l) (s, []) l in
+  let s, l' = List.fold_left (fun (s, l) a -> let s'', b = f s a in s'', b :: l) (s, []) l in
   s, List.rev l'
 
 
@@ -195,33 +179,33 @@ let unquote_inductive (Coq_mkInd (s, n) : Ast0.inductive) =
   Names.mind_of_kn (Reify.kn_of_canonical_string (string_of_chars s)), unquote_nat n
               
                          
-let rec unquote env sigma (t : Ast0.term) : Evd.evar_map * Term.constr =
+let rec unquote sigma (t : Ast0.term) : Evd.evar_map * Term.constr =
   match t with
   | Coq_tRel n -> sigma, mkRel (unquote_nat n + 1)
   | Coq_tVar s -> sigma, mkVar (unquote_ident s)
   | Coq_tMeta n -> sigma, mkMeta (unquote_nat n)
-  | Coq_tEvar (n, l) -> let sigma, l = sigma_map (unquote env) sigma l in sigma, mkEvar (todo 4, Array.of_list l)
-  | Coq_tSort s -> unquote_sort env sigma s
+  | Coq_tEvar (n, l) -> let sigma, l = sigma_map unquote sigma l in sigma, mkEvar (todo 4, Array.of_list l)
+  | Coq_tSort s -> unquote_sort sigma s
   | Coq_tCast (t, k, u) ->
-     let sigma, t' = unquote env sigma t in
-     let sigma, u' = unquote env sigma u in
+     let sigma, t' = unquote sigma t in
+     let sigma, u' = unquote sigma u in
      sigma, mkCast (t', unquote_cast k, u')
   | Coq_tProd (n, t, u) ->
-     let sigma, t' = unquote env sigma t in
-     let sigma, u' = unquote (Environ.push_rel (Context.Rel.Declaration.LocalAssum (unquote_name n, mkRel 1)) env) sigma u in
+     let sigma, t' = unquote sigma t in
+     let sigma, u' = unquote sigma u in
      sigma, mkProd (unquote_name n, t', u')
   | Coq_tLambda (n, t, u) ->
-     let sigma, t' = unquote env sigma t in
-     let sigma, u' = unquote env sigma u in
+     let sigma, t' = unquote sigma t in
+     let sigma, u' = unquote sigma u in
      sigma, mkLambda (unquote_name n, t', u')
   | Coq_tLetIn (n, t, u, v) ->
-     let sigma, t' = unquote env sigma t in
-     let sigma, u' = unquote env sigma u in
-     let sigma, v' = unquote env sigma v in
+     let sigma, t' = unquote sigma t in
+     let sigma, u' = unquote sigma u in
+     let sigma, v' = unquote sigma v in
      sigma, mkLetIn (unquote_name n, t', u', v')
   | Coq_tApp (t, l) ->
-     let sigma, t' = unquote env sigma t in
-     let sigma, l = sigma_map (unquote env) sigma l in
+     let sigma, t' = unquote sigma t in
+     let sigma, l = sigma_map unquote sigma l in
      sigma, mkApp (t', Array.of_list l)
   | Coq_tConst s -> sigma, mkConst (Names.constant_of_kn (Reify.kn_of_canonical_string (string_of_chars s)))
   | Coq_tInd ind -> sigma, mkInd (unquote_inductive ind)
@@ -229,7 +213,7 @@ let rec unquote env sigma (t : Ast0.term) : Evd.evar_map * Term.constr =
      sigma, mkConstruct (unquote_inductive ind, unquote_nat k + 1)
   | Coq_tCase (* of (Ast0.inductive * Datatypes.nat) * Ast0.term * Ast0.term * (Datatypes.nat * Ast0.term) list *) _ -> todo 5
   | Coq_tProj (((ind, k), n), t) (* Ast0.projection * Ast0.term *) ->
-     let sigma, t' = unquote env sigma t in
+     let sigma, t' = unquote sigma t in
      let ind' = unquote_inductive ind in
      let (mib,mip) = Global.lookup_inductive ind' in
      let s = match mib.mind_record with
@@ -259,7 +243,7 @@ let translate env global_ctx tsl_ctx sigma c =
   let c' = Trad.tsl global_ctx tsl_ctx [] c' in
   (* let c' = c' in *)
   Feedback.msg_debug (str"Tsl done");
-  let sigma, c'' = unquote env sigma c' in
+  let sigma, c'' = unquote sigma c' in
   Feedback.msg_debug (str"Unquoting done");
   (* let (((n,k),l), u) = Term.destConstruct c in *)
   (* let (((n'',k''),l''), u'') = Term.destConstruct c'' in *)
@@ -277,6 +261,21 @@ let translate env global_ctx tsl_ctx sigma c =
     Feedback.msg_debug (str"qslk2"++Printer.pr_constr_env (Environ.push_rel (Context.Rel.Declaration.LocalAssum (n, mkRel 1)) env) sigma u);
   with
   | Term.DestKO -> ());
+  Feedback.msg_debug (str"Env:");
+  Feedback.msg_debug (Evd.pr_evar_map ~with_univs:true None sigma);
   (c'', sigma)
   
-let translate_type = translate
+let translate_type env global_ctx tsl_ctx sigma c =
+  let c' = Template_coq.quote_term env c in
+  let c' = Trad.tsl_type global_ctx tsl_ctx [] c' in
+  let sigma, c'' = unquote sigma c' in
+  Feedback.msg_debug (str"_ Original term:");
+  (* Feedback.msg_debug (str (dump c)); *)
+  Feedback.msg_debug (Printer.pr_constr_env env sigma c);
+  Feedback.msg_debug (str"_ Translated term:");
+  (* Feedback.msg_debug (str (dump c'')); *)
+  Feedback.msg_debug (Printer.pr_constr_env env sigma c'');
+  Feedback.msg_debug (str"_ Env:");
+  Feedback.msg_debug (Evd.pr_evar_map ~with_univs:true None sigma);
+  (* Feedback.msg_debug (Printer.pr_universe_ctx sigma  *)
+  (c'', sigma)

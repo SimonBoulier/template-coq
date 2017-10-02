@@ -53,7 +53,7 @@ let string_of_global_decl = function
 let string_of_global_ctx g =
   let s = ref "[" in
   List.iter (fun x -> s := !s ^ (string_of_global_decl x) ^ "; ") g;
-  !s ^ "|"
+  !s ^ "]"
 
 let string_of_tsl_ctx g =
   let s = ref "[" in
@@ -148,18 +148,20 @@ let dump v = dump (Obj.repr v)
 
 
 open Entries
+
 let translate_constr ?types env sigma c id =
   Feedback.msg_debug (str ("global env: " ^ (string_of_global_ctx !global_ctx)));
   Feedback.msg_debug (str ("tsl env: " ^ (string_of_tsl_ctx !tsl_ctx)));
   let (body, sigma) = MTranslate.translate env !global_ctx !tsl_ctx sigma c in
-  Feedback.msg_debug (str"evar");
-  let evdref = ref sigma in
-  let body = Typing.e_solve_evars env evdref body in
-  let sigma = !evdref in
-  Feedback.msg_debug (str"evar done");
+  (* Feedback.msg_debug (str"evar"); *)
+  (* let evdref = ref sigma in *)
+  (* let body = Typing.e_solve_evars env evdref body in *)
+  (* let sigma = !evdref in *)
+  (* Feedback.msg_debug (str"evar done"); *)
   (* Feedback.msg_debug (str ("dump: " ^ (dump body))); *)
   (* let (sigma, t) = Typing.type_of env sigma body in *)
-  (* Feedback.msg_debug (str "type:" ++ Printer.pr_constr_env env sigma t); *)
+  Feedback.msg_debug (str "type:" ++ Printer.pr_constr_env env sigma c);
+  Feedback.msg_debug (str "type:" ++ Printer.pr_constr_env env sigma body);
   let (_, uctx) = Evd.universe_context sigma in
   let ce   = Declare.definition_entry ?types ~univs:uctx body in
   let cd   = Entries.DefinitionEntry ce in
@@ -172,88 +174,76 @@ let translate_constr ?types env sigma c id =
   body, ConstRef cst_
 
 
-let translate_constant env sigma cst id =
-  (** Translate the type *)
-  let typ = Universes.unsafe_type_of_global (ConstRef cst) in
-  let typ, sigma = MTranslate.translate_type env !global_ctx !tsl_ctx sigma typ in
-  (* let sigma, _ = Typing.type_of env sigma typ in *)
-  (* let _uctx = Evd.evar_universe_context sigma in *)
-  (** Define the term by tactic *)
-  let body = match (Global.body_of_constant cst) with
-    | Some body -> body
-    | _ -> CErrors.anomaly (Pp.str "Are you trying to translate some axiom?") in
-  translate_constr ~types:typ env sigma body id
 
-(* let quote_ind env t : Typing0.minductive_decl = *)
-(*   let open Typing0 in *)
-(*   let open Declarations in *)
-(*   let mib = Environ.lookup_mind t env in *)
-(*   {ind_npars=(Template_coq.quote_int mib.mind_nparams); ind_bodies=todo} *)
-    
 let translate gr id' =
   let gr = Nametab.global gr in
   (* Feedback.msg_debug (str "full_path:" ++ Libnames.pr_path (Nametab.path_of_global gr)); *)
-  let quoted_id  = MTranslate.chars_of_string (Libnames.string_of_path (Nametab.path_of_global gr )) in
+  let quoted_id  = MTranslate.chars_of_string (Libnames.string_of_path (Nametab.path_of_global gr)) in
   let id' = match id' with
     | Some id -> id
     | None -> translate_name (Nametab.basename_of_global gr)
   in
   let env = Global.env () in
   let sigma = Evd.from_env env in
-  let body', gr' = match gr with
-    | ConstRef cst ->
-       let typ = Universes.unsafe_type_of_global gr in
-       let typ, sigma = MTranslate.translate_type env !global_ctx !tsl_ctx sigma typ in
-       let body = match (Global.body_of_constant cst) with
-         | Some body -> body
-         | _ -> CErrors.anomaly (Pp.str "Are you trying to translate some axiom?") in
-       let decl = Ast0.{ cst_name = quoted_id; cst_type = Template_coq.quote_term env typ;
-                         cst_body = Some (Template_coq.quote_term env body) (* TODO not unquote twice *) } in
-       global_ctx := (Ast0.ConstantDecl (quoted_id, decl)) :: !global_ctx;
-       translate_constr ~types:typ env sigma body id'
+  let typ = Universes.unsafe_type_of_global gr in
+  let typ', sigma = MTranslate.translate_type env !global_ctx !tsl_ctx sigma typ in
+  match gr with
+  | ConstRef cst ->
+     let body = match Global.body_of_constant cst with
+       | Some body -> body
+       | _ -> CErrors.anomaly (Pp.str "Are you trying to translate some axiom?") in
+     let decl = Ast0.{ cst_name = quoted_id; cst_type = Template_coq.quote_term env typ;
+                       cst_body = Some (Template_coq.quote_term env body) (* TODO not unquote twice *) } in
+     global_ctx := (Ast0.ConstantDecl (quoted_id, decl)) :: !global_ctx;
+     let _, gr' = translate_constr ~types:typ' env sigma body id' in
+     let quoted_id' = MTranslate.chars_of_string (Libnames.string_of_path (Nametab.path_of_global gr')) in
+     tsl_ctx := (quoted_id, quoted_id') :: !tsl_ctx;
+     Feedback.msg_info (str"Global " ++ Printer.pr_global gr ++ str" has been translated as " ++ Printer.pr_global gr' ++ str".")
     | IndRef ind ->
        global_ctx := (Template_coq.quote_mind_decl env (fst ind)) :: !global_ctx;
-       translate_constr env sigma (mkInd ind) id'
-    | ConstructRef c ->
-       translate_constr env sigma (mkConstruct c) id'
+       let quoted_id' = MTranslate.chars_of_string (Libnames.string_of_path (Lib.make_path id')) in
+       tsl_ctx := (quoted_id, quoted_id' ) :: !tsl_ctx;
+       let kind = Global, Flags.use_polymorphic_flag (), DefinitionBody Definition in
+       Feedback.msg_debug (str "hook1");
+       Lemmas.start_proof id' kind sigma typ' (Lemmas.mk_hook (fun _ _ -> Feedback.msg_debug (str "hook2")))
+    (* | ConstructRef c -> *)
+       (* translate_constr env sigma (mkConstruct c) id' *)
+    (* Est-ce qu'il faut ajouter au global ctx ? *)
     | _ -> error "Translation not handled."
-  in
-  let quoted_id' = MTranslate.chars_of_string (Libnames.string_of_path (Nametab.path_of_global gr')) in
-  let decl = Ast0.{ cst_name = quoted_id'; cst_type = Template_coq.quote_term env (Universes.unsafe_type_of_global gr');
-                    cst_body = Some (Template_coq.quote_term env body') (* TODO not unquote twice *) } in
-  global_ctx := (Ast0.ConstantDecl (quoted_id', decl)) :: !global_ctx;
-  tsl_ctx := (quoted_id, quoted_id') :: !tsl_ctx;
-  Feedback.msg_info (str"Global " ++ Printer.pr_global gr ++ str" has been translated as " ++ Printer.pr_global gr' ++ str".")
 
 
                     
 let implement id typ idopt =
-  let env = Global.env () in
   let id_ = match idopt with
     | Some id' -> id'
     | None -> translate_name id
   in
-  let kind = Global, Flags.use_polymorphic_flag (), DefinitionBody Definition in
-  let sigma = Evd.from_env env in
-  let typ, uctx = Constrintern.interp_type env sigma typ in
+  let env = Global.env () in
+  let typ, uctx = Constrintern.interp_type env (Evd.from_env env) typ in
   let sigma = Evd.from_ctx uctx in
+  (* let evdref = ref sigma in *)
+  (* let typ = Constrintern.interp_type_evars env evdref typ in *)
+  (* let sigma = !evdref in *)
   let typ_, sigma = MTranslate.translate_type env !global_ctx !tsl_ctx sigma typ in
+  (* let (sigma, _) = Typing.type_of env sigma typ_ in *)
+  (* Feedback.msg_debug (Evd.pr_evar_map ~with_univs:true None sigma); *)
   let hook _ dst =
     (** Declare the original term as an axiom *)
-    let param = (None, false, (typ, Evd.evar_context_universe_context uctx), None) in
+    let param = (None, false, (typ, UState.context (Evd.evar_universe_context sigma)), None) in
     let cb = Entries.ParameterEntry param in
     let cst = Declare.declare_constant id (cb, IsDefinition Definition) in
     (** Attach the axiom to the implementation *)
-    Feedback.msg_debug (str "full_path:" ++ Libnames.pr_path (Lib.make_path id));
-    Feedback.msg_debug (str "full_path:" ++ Libnames.pr_path (Lib.make_path id_));
+    (* Feedback.msg_debug (str "full_path:" ++ Libnames.pr_path (Lib.make_path id)); *)
+    (* Feedback.msg_debug (str "full_path:" ++ Libnames.pr_path (Lib.make_path id_)); *)
     let quoted_ident  = MTranslate.chars_of_string (Libnames.string_of_path (Lib.make_path id)) in
     let quoted_ident' = MTranslate.chars_of_string (Libnames.string_of_path (Lib.make_path id_)) in
     tsl_ctx := (quoted_ident, quoted_ident' ) :: !tsl_ctx;
   in
   let hook ctx = Lemmas.mk_hook hook in
   (* let sigma, _ = Typing.type_of env sigma typ_ in *)
-  let () = Lemmas.start_proof_univs id_ kind sigma typ_ hook in
-  ()
+  let kind = Global, Flags.use_polymorphic_flag (), DefinitionBody Definition in
+  Lemmas.start_proof_univs id_ kind sigma typ_ hook
+
 
 (** Error handling *)
 

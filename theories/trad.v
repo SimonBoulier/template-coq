@@ -209,15 +209,6 @@ Open Scope list_scope. Open Scope string_scope.
 Reserved Notation "M 'ᵗ'" (at level 20).
 (* Axiom todo : forall {A}, A. *)
 
-Fixpoint tsl_inductive (t : inductive) : inductive :=
-  match t with
-  | mkInd s n => mkInd s n
-  end.
-
-Fixpoint tsl_projection (t : projection) : projection :=
-  match t with
-  | (i , n , m) => (tsl_inductive i , n , m)
-  end.
 
 Set Primitive Projections.
 Record sigma A B :=
@@ -228,7 +219,7 @@ Arguments mk_sig {A B} _ _.
 
 Quote Definition tSigma := sigma.
 Quote Definition tPair := @mk_sig.
-Definition pair (t1 t2 typ1 typ2 : term) : term
+Definition pair (typ1 typ2 t1 t2 : term) : term
   := tApp tPair [ typ1 ; typ2 ; t1 ; t2].
 Definition pack (t u : term) : term
   := tApp tSigma [ t ; u ].
@@ -268,8 +259,11 @@ Reserved Notation "'tsl_typ'".
 Reserved Notation "'tsl_term'".
 
 (* if b it is the first translation, else the second *)
-Fixpoint tsl_rec (Σ : global_context) (E : tsl_context) (Γ : context) (b : bool) (t : term) {struct t}
+Fixpoint tsl_rec (fuel : nat) (Σ : global_context) (E : tsl_context) (Γ : context) (b : bool) (t : term) {struct fuel}
   : term :=
+  match fuel with
+  | O => todo
+  | S fuel =>
   match t with
   (* | tRel       : nat -> term *)
   | tRel n => proj b (tRel n)
@@ -278,61 +272,77 @@ Fixpoint tsl_rec (Σ : global_context) (E : tsl_context) (Γ : context) (b : boo
   (* | tMeta      : nat -> term   (** NOTE: this can go away *) *)
   | tMeta n => proj b (tMeta n)
   (* | tEvar      : nat -> list term -> term *)
-  | tEvar n l => tEvar n (List.map (tsl_typ Σ E Γ) l)
+  | tEvar n l => tEvar n (List.map (tsl_typ fuel Σ E Γ) l)
   (* | tSort      : sort -> term *)
   | tSort s => if b then tSort s
-              else tLambda nAnon (tSort s) (tProd nAnon (tRel 0) (tSort s))
+              else tLambda (nNamed "A") (tSort s) (tProd nAnon (tRel 0) (tSort s))
   (* | tCast      : term -> cast_kind -> term -> term *)
-  | tCast t c A => if b then tCast (tsl_rec Σ E Γ true t) c (tsl_rec Σ E Γ true A)
-                  else tCast (tsl_rec Σ E Γ false t) c (tApp (tsl_rec Σ E Γ false A) [tsl_rec Σ E Γ true t])
+  | tCast t c A => if b then tCast (tsl_rec fuel Σ E Γ true t) c (tsl_rec fuel Σ E Γ true A)
+                  else tCast (tsl_rec fuel Σ E Γ false t) c (tApp (tsl_rec fuel Σ E Γ false A) [tsl_rec fuel Σ E Γ true t])
   (* | tProd      : name -> term (** the type **) -> term -> term *)
   | tProd n A B => if b then
-                    tProd n (tsl_typ Σ E Γ A) (tsl_rec Σ E (Γ ,, vass n A) true B)
+                    tProd n (tsl_typ fuel Σ E Γ A) (tsl_rec fuel Σ E (Γ ,, vass n A) true B)
                   else
-                    let A' := tsl_typ Σ E Γ A in
-                    tLambda nAnon (tProd n A' (tsl_rec Σ E Γ true B))
-                            (tProd n A'(tApp (tsl_rec Σ E Γ false B)
-                                             [tApp (tRel 2) [tRel 1]]))
+                    let A' := tsl_typ fuel Σ E Γ A in
+                    tLambda (nNamed "f") (tProd n A' (tsl_rec fuel Σ E Γ true B))
+                            (tProd n A'(tApp (tsl_rec fuel Σ E Γ false B)
+                                             [tApp (tRel 1) [tRel 0]]))
   (* | tLambda    : name -> term (** the type **) -> term -> term *)
-  | tLambda n A t => let A' := tsl_typ Σ E Γ A in tLambda n A' (tsl_rec Σ E (Γ ,, vass n A') b t)
+  | tLambda n A t => let A' := tsl_typ fuel Σ E Γ A in tLambda n A' (tsl_rec fuel Σ E (Γ ,, vass n A') b t)
   (* | tLetIn     : name -> term (** the term **) -> term (** the type **) -> term -> term *)
-  | tLetIn n t A u => let t' := tsl_term Σ E Γ t in
-                     let A' := tsl_typ Σ E Γ A in
-                     tLetIn n t' A' (tsl_rec Σ E (Γ ,, vdef n t' A') b u)
+  | tLetIn n t A u => let t' := tsl_term fuel Σ E Γ t in
+                     let A' := tsl_typ fuel Σ E Γ A in
+                     tLetIn n t' A' (tsl_rec fuel Σ E (Γ ,, vdef n t' A') b u)
   (* | tApp       : term -> list term -> term *)
-  | tApp (tInd i) u => tApp (tInd i) (List.map (tsl_rec Σ E Γ b) u)
-  | tApp (tConstruct i n) u => tApp (tConstruct i n) (List.map (tsl_rec Σ E Γ b) u)
-  | tApp t u => tApp (tsl_rec Σ E Γ b t) (List.map (tsl_term Σ E Γ) u)
+  | tApp (tInd i) u => tApp (tInd i) (List.map (tsl_rec fuel Σ E Γ b) u)
+  | tApp (tConstruct i n) u => tApp (tConstruct i n) (List.map (tsl_rec fuel Σ E Γ b) u)
+  | tApp t u => tApp (tsl_rec fuel Σ E Γ b t) (List.map (tsl_term fuel Σ E Γ) u)
   (* | tConst     : string -> term *)
   | tConst s => match lookup_tsl_ctx E s with
                | Some t => tConst t
                | None => todo
                end
   (* | tInd       : inductive -> term *)
-  | tInd i => tInd (tsl_inductive i)
+  | tInd (mkInd s _) => match lookup_tsl_ctx E s with
+                       | Some t => tConst t
+                       | None => todo
+                       end
   (* | tConstruct : inductive -> nat -> term *)
-  | tConstruct i n => tConstruct (tsl_inductive i) n
+  | tConstruct (mkInd s _) n => match lookup_env Σ s with
+                               | Some decl => todo
+                               | None => todo
+                               end
   (* | tCase      : (inductive * nat) (* # of parameters *) -> term (** type info **) -> term -> *)
   (*                list (nat * term) -> term *)
-  | tCase (i , n) t u l => tCase (tsl_inductive i , n) (tsl_rec Σ E Γ b t) (tsl_rec Σ E Γ b u) (List.map (fun nt => (fst nt , tsl_rec Σ E Γ b (snd nt))) l)
+  | tCase (i , n) t u l => todo
   (* | tProj      : projection -> term -> term *)
-  | tProj p t => tProj (tsl_projection p) (tsl_rec Σ E Γ b t)
+  | tProj p t => todo
   (* | tFix       : mfixpoint term -> nat -> term *)  (* mfixpoint = list (def term) *)
-  | tFix l n => tFix (List.map (map_def (tsl_rec Σ E Γ b)) l) n
+  | tFix l n => tFix (List.map (map_def (tsl_rec fuel Σ E Γ b)) l) n
   (* | tCoFix     : mfixpoint term -> nat -> term. *)
-  | tCoFix l n => tCoFix (List.map (map_def (tsl_rec Σ E Γ b)) l) n
+  | tCoFix l n => tCoFix (List.map (map_def (tsl_rec fuel Σ E Γ b)) l) n
   end
-where "'tsl_typ'" := (fun Σ E Γ t => pack (tsl_rec Σ E Γ true t) (tsl_rec Σ E Γ false t))
-and  "'tsl_term'" := (fun Σ E Γ t => let t1 := tsl_rec Σ E Γ true t in
-                                  let t2 := tsl_rec Σ E Γ false t in
-                                  let typ1 := match infer Σ Γ t1 with
-                                              | Checked A => A
-                                              | _ => todo end in
-                                  let typ2 := match infer Σ Γ t2 with
-                                              | Checked A => A
-                                              | _ => todo end in
-                                              pair t1 t2 typ1 typ2).
+end
+where "'tsl_typ'" := (fun fuel Σ E Γ t => pack (tsl_rec fuel Σ E Γ true t) (tsl_rec fuel Σ E Γ false t))
+and  "'tsl_term'" := (fun fuel Σ E Γ t => let typ := match infer Σ Γ t with
+                                             | Checked A => A
+                                             | _ => todo end in
+                                  let t1 := tsl_rec fuel Σ E Γ true t in
+                                  let t2 := tsl_rec fuel Σ E Γ false t in
+                                  let typ1 := tsl_rec fuel Σ E Γ true typ in
+                                  let typ2 := tsl_rec fuel Σ E Γ false typ in
+                                  pair typ1 typ2 t1 t2).
 
 
-Definition tsl := tsl_term.
-Definition tsl_type:= tsl_typ.
+
+Definition tsl := tsl_term 1000.
+Definition tsl_type:= tsl_typ 1000.
+
+(* Test Quote Type. *)
+(* Compute (tsl [] [] [] (tSort (sType BinNums.xH))). *)
+(* Make Definition hj := (tApp (tConstruct (mkInd "Top.sigma" 0) 0) *)
+(*          [tSort (sType (BinNums.xO 1)); *)
+(*          tProd (nNamed "A") (tSort (sType BinNums.xH)) *)
+(*            (tSort (sType (BinNums.xO 1))); tSort (sType BinNums.xH); *)
+(*          tLambda (nNamed "A") (tSort (sType BinNums.xH)) *)
+(*            (tProd nAnon (tRel 0) (tSort (sType BinNums.xH)))]). *)

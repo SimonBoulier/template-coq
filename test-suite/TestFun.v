@@ -161,14 +161,55 @@
 (* Is is necessary to import Template.trad for the definition of prod' *)
 Require Import Template.Translation Template.trad.
 
+(* Test Quote Type. *)
+(* Set Printing Universes. *)
+(* Make Definition t := (Ast.tSort (Ast.sType BinNums.xH)). *)
+(* Print t. *)
+(* Print Universes. *)
+
 Let T := Type.
 Check (T : T).
 
-Let t := Set.
+Implement t' : Set.
+cbn. exists nat. exact (fun _ => bool).
+Defined.
+
+Definition t := Set.
 Translate t.
 
+Implement y : Type.
+refine (@mk_sig Type (fun A : Type => A -> Type) Type _).
+auto.
+Defined.
+
+Implement yy : Type -> Type.
+cbn. unshelve econstructor.
+Abort.
+
+Translate unit.
+exact (mk_sig unit (fun _ => unit)).
+Defined.
+Print unitᵗ.
+
+Set Printing Universes.
 Translate sigma.
-Translate pair'.
+cbn.
+refine (@mk_sig _ _ _ _).
+econstructor.
+
+Translate eq.
+
+Definition equiv A B :=
+  sigma (A -> B)
+        (fun f => sigma (B -> A)
+                     (fun g => forall x, g (f x) = x)).
+
+Translate equiv.
+
+Implement notUnivalence : exists 
+
+Translate sigma.
+Translate pair.
 (* Translate fst'. *)
 (* Translate snd'. *)
 Translate bool.
