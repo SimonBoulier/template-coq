@@ -231,10 +231,11 @@ let implement id typ idopt =
   let env = Global.env () in
   let typ, uctx = Constrintern.interp_type env (Evd.from_env env) typ in
   let sigma = Evd.from_ctx uctx in
-  (* let evdref = ref sigma in *)
+  (* let evdref = ref (Evd.from_env env) in *)
   (* let typ = Constrintern.interp_type_evars env evdref typ in *)
   (* let sigma = !evdref in *)
   Feedback.msg_debug (str "typ:" ++ Printer.pr_constr_env env sigma typ);
+  Feedback.msg_debug (str "evarmap:" ++ Evd.pr_evar_map ~with_univs:true None sigma);
   let typ_, sigma = MTranslate.translate_type env !global_ctx !tsl_ctx sigma typ in
   Feedback.msg_debug (str "typ':" ++ Printer.pr_constr_env env sigma typ_);
   Feedback.msg_debug (str "evarmap:" ++ Evd.pr_evar_map None sigma);

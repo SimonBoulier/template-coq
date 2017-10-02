@@ -228,6 +228,31 @@ let rec unquote sigma (t : Ast0.term) : Evd.evar_map * Term.constr =
   | Coq_tFix (* of Ast0.term Ast0.mfixpoint * Datatypes.nat *) _ -> todo 7
   | Coq_tCoFix (* of Ast0.term Ast0.mfixpoint * Datatypes.nat *) _ -> todo 8
 
+let rec string_of_term (t : Ast0.term) : string =
+  match t with
+  | Coq_tRel n -> "Rel " ^ string_of_int (unquote_nat n)
+  | Coq_tVar s -> "Var"
+  | Coq_tMeta n -> "Meta"
+  | Coq_tEvar (n, l) -> "Evar"
+  | Coq_tSort Coq_sProp -> "Prop"
+  | Coq_tSort Coq_sSet -> "Set"
+  | Coq_tSort (Coq_sType _) -> "Type"
+  | Coq_tCast (t, k, u) -> "(" ^ string_of_term t ^ ":" ^ string_of_term u ^ ")"
+  | Coq_tProd (Coq_nAnon, t, u) -> "Π (" ^ "_" ^ ": " ^ string_of_term t ^ ")." ^ string_of_term u
+  | Coq_tProd (Coq_nNamed n, t, u) -> "Π (" ^ string_of_chars n ^ ": " ^ string_of_term t ^ ")." ^ string_of_term u
+  | Coq_tLambda (Coq_nAnon, t, u) -> "λ (" ^ "_" ^ ": " ^ string_of_term t ^ ")." ^ string_of_term u
+  | Coq_tLambda (Coq_nNamed n, t, u) -> "λ (" ^ string_of_chars n ^ ": " ^ string_of_term t ^ ")." ^ string_of_term u
+  | Coq_tLetIn (Coq_nAnon, t, u, v) -> "let " ^ "_" ^ ":= " ^ string_of_term t ^ " : " ^ string_of_term u ^ " in " ^ string_of_term v
+  | Coq_tLetIn (Coq_nNamed n, t, u, v) -> "let " ^ string_of_chars n ^ ":= " ^ string_of_term t ^ " : " ^ string_of_term u ^ " in " ^ string_of_term v
+  | Coq_tApp (t, l) -> string_of_term t ^ List.fold_left (fun s t -> s ^ "(" ^ string_of_term t ^ ") ") " " l
+  | Coq_tConst s -> "Const:" ^ string_of_chars s
+  | Coq_tInd (Coq_mkInd (s, _)) -> "Ind:" ^ string_of_chars s
+  | Coq_tConstruct (Coq_mkInd (s, _), k) -> "Construct:" ^ string_of_chars s
+  | Coq_tCase _ -> "Case"
+  | Coq_tProj (((Coq_mkInd (s, _), k), n), t) -> "Proj:" ^ string_of_chars s ^ string_of_int (unquote_nat n) ^ " (" ^ string_of_term t ^ ")"
+  | Coq_tFix (* of Ast0.term Ast0.mfixpoint * Datatypes.nat *) _ -> "Fix"
+  | Coq_tCoFix (* of Ast0.term Ast0.mfixpoint * Datatypes.nat *) _ -> "Cofix"
+
 
 let translate env global_ctx tsl_ctx sigma c =
   Feedback.msg_debug (str "Quoting " ++ Printer.pr_constr_env env sigma c);
@@ -272,9 +297,21 @@ let translate_type env global_ctx tsl_ctx sigma c =
   Feedback.msg_debug (str"_ Original term:");
   (* Feedback.msg_debug (str (dump c)); *)
   Feedback.msg_debug (Printer.pr_constr_env env sigma c);
+  Feedback.msg_debug (str "evarmap:" ++ Evd.pr_evar_map ~with_univs:true None sigma);
   Feedback.msg_debug (str"_ Translated term:");
-  (* Feedback.msg_debug (str (dump c')); *)
+  Feedback.msg_debug (str (string_of_term c'));
   (* Feedback.msg_debug (str (dump c'')); *)
+  (try 
+    let (t,[|u;v|]) = Term.destApp c'' in
+    Feedback.msg_debug (str"qslk2"++Printer.pr_constr_env env sigma t);
+    Feedback.msg_debug (str"qslk3"++Printer.pr_constr_env env sigma u);
+    let (p,t) = Term.destProj u in
+    Feedback.msg_debug (str"qslk2"++Names.Projection.print p);
+    let (t, u) = destConst t in
+    Feedback.msg_debug (str"qslk2"++Names.Constant.print t);
+  with
+  | _ -> ());
+
   Feedback.msg_debug (Printer.pr_constr_env env sigma c'');
   Feedback.msg_debug (str"_ Env:");
   Feedback.msg_debug (Evd.pr_evar_map ~with_univs:true None sigma);

@@ -186,12 +186,12 @@ Implement yy : Type -> Type.
 cbn. unshelve econstructor.
 Abort.
 
-Translate unit.
+Implement Existing unit.
 exact (mk_sig unit (fun _ => unit)).
 Defined.
 Print unitᵗ.
 
-Translate tt.
+Implement Existing tt.
 unshelve econstructor. exact tt. exact tt.
 Defined.
 
@@ -228,7 +228,7 @@ Inductive sigma2 (A : sigma Type (fun A => A -> Type))
 | mk_sig2 : forall (x : sigma (π1 A) (π2 A))
               (y : sigma (π1 B x) (π2 B x)), sigma2 _ _ (mk_sig1 _ _ x y).
 
-Translate sigma.
+Implement Existing sigma.
 unshelve econstructor.
 exact sigma1.
 exact sigma2.
@@ -240,7 +240,7 @@ Inductive eq2 (A : TType) (x : El A) :
 
   (* forall (A : TType) (x H : El A), x = H -> Prop *)
 
-Translate eq.
+Implement Existing eq.
 unshelve econstructor.
 exact (fun A x y => π1 x = π1 y).
 cbn. exact eq2.
@@ -257,16 +257,20 @@ Definition equiv (A B : Type) :=
                      (fun g => forall x, g (f x) = x)).
 Translate equiv.
 
-Definition eq' := @unit.
-Translate eq'.
+Definition eqq := @unit.
+Translate eqq as eqq_.
+Compute eqq_.
+About eqq_.
+Definition tqq := eqq_.
 
-Implement notUnivalence : eq'.
+
+Implement notUnivalence : 
   sigma Type
         (fun A => sigma Type
-                     (fun B => (equiv A B))).
-                                  (fun _ => Type))).
-
-
+                     (fun B => sigma (equiv A B)
+                                  (fun _ => (A = B) -> forall X, X))).
+unshelve econstructor.
+{ unshelve econstructor. exists unit. exact (fun _ => bool).
 
 
 
