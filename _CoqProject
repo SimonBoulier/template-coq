@@ -13,4 +13,7 @@ theories/WeakSubst.v
 theories/Typing.v
 theories/Checker.v
 
-theories/trad.v
+theories/sigma.v
+theories/translation_utils.v
+theories/tsl_param.v
+theories/tsl_fun.v

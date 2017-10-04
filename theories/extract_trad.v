@@ -4,11 +4,13 @@
     should use these same directives for consistency.
 *)
 
-Require Import Template.trad.
+Require Import Template.translation_utils Template.tsl_param Template.tsl_fun.
 
 Require Import ExtrOcamlBasic.
 Require Import ExtrOcamlString.
 
 Extraction Blacklist Ast String List Nat Typing.
 
-Extraction Library trad.
+Extraction Library translation_utils.
+Extraction Library tsl_param.
+Extraction Library tsl_fun.

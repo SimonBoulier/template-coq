@@ -9,7 +9,10 @@ open Libobject
 open Globnames
 open Proofview.Notations
 open Entries
-
+open Unquote
+open Translation_utils
+open Tsl_param
+       
 (** Utilities *)
 
 let translate_name id =
@@ -19,7 +22,7 @@ let translate_name id =
 (** Record of translation between globals *)
 
 let global_ctx : Typing0.global_context ref = ref []
-let tsl_ctx : Trad.tsl_context ref = ref []
+let tsl_ctx : tsl_context ref = ref []
 
 let add_global_ctx x =
   global_ctx := x :: !global_ctx
@@ -28,8 +31,8 @@ let add_tsl_ctx x =
   tsl_ctx := x :: !tsl_ctx
                                          
 let string_of_global_decl = function
-  | Ast0.ConstantDecl (i, _) -> MTranslate.string_of_chars i
-  | Ast0.InductiveDecl (i, _) -> MTranslate.string_of_chars i
+  | Ast0.ConstantDecl (i, _) -> string_of_chars i
+  | Ast0.InductiveDecl (i, _) -> string_of_chars i
 
 let string_of_global_ctx g =
   let s = ref "[" in
@@ -38,7 +41,7 @@ let string_of_global_ctx g =
 
 let string_of_tsl_ctx g =
   let s = ref "[" in
-  List.iter (fun (x, y) -> s := !s ^ "(" ^ (MTranslate.string_of_chars x) ^ "," ^ (MTranslate.string_of_chars y) ^ "); ") g;
+  List.iter (fun (x, y) -> s := !s ^ "(" ^ (string_of_chars x) ^ "," ^ (string_of_chars y) ^ "); ") g;
   !s ^ "]"
 
 let string_of_array pr a =
@@ -126,6 +129,29 @@ let rec dump r =
 let dump v = dump (Obj.repr v)
 
 
+let string_of_error = function
+  | NotEnoughFuel -> "Not enough fuel"
+  | TranslationNotFound t -> "Translation of " ^ string_of_chars t ^ " not found"
+  | TranslationNotHandeled -> "Translation not handeled"
+  | TypingError -> "Typing error"
+
+let wrap_extracted_function f =
+  fun env global_ctx tsl_ctx sigma c ->
+  let c = Template_coq.quote_term env c in
+  let c = f global_ctx tsl_ctx c in
+  let c = match c with
+    | Success x -> x
+    | Error e -> error ("Translation raised an error: " ^ string_of_error e) in
+  unquote sigma c
+
+let translate = wrap_extracted_function tsl
+let translate_type = wrap_extracted_function tsl_type
+
+
+
+
+                  
+
 type translation_operation = Translate of global_reference | ImplementExisting of global_reference | Implement of Constrexpr.constr_expr
 
 let translate_implement op id id' =
@@ -136,19 +162,19 @@ let translate_implement op id id' =
   Feedback.msg_debug(str s ++ Libnames.pr_path id);
   Feedback.msg_debug (str ("global env: " ^ (string_of_global_ctx !global_ctx)));
   Feedback.msg_debug (str ("tsl env: " ^ (string_of_tsl_ctx !tsl_ctx)));
-  let quoted_id  = MTranslate.chars_of_string (Libnames.string_of_path id) in
+  let quoted_id  = chars_of_string (Libnames.string_of_path id) in
   let id' = match id' with
     | Some id -> id
     | None -> translate_name (Libnames.basename id)
   in
-  let quoted_id' = MTranslate.chars_of_string (Libnames.string_of_path (Lib.make_path id')) in
+  let quoted_id' = chars_of_string (Libnames.string_of_path (Lib.make_path id')) in
   let env   = Global.env () in
   let sigma = Evd.from_env env in
   let sigma, typ = match op with
     | Translate gr | ImplementExisting gr -> sigma, Universes.unsafe_type_of_global gr
     | Implement ce -> let typ, uctx = Constrintern.interp_type env (Evd.from_env env) ce in
                       Evd.from_ctx uctx, typ in
-  let typ', sigma = MTranslate.translate_type env !global_ctx !tsl_ctx sigma typ in
+  let sigma, typ' = translate_type env !global_ctx !tsl_ctx sigma typ in
   let kind = Global, Flags.use_polymorphic_flag (), DefinitionBody Definition in
   let end_with hook decl =
     hook ();
@@ -160,7 +186,7 @@ let translate_implement op id id' =
      (match gr with
       | ConstRef cst ->
          (match Global.body_of_constant cst with
-          | Some body -> let (body, sigma) = MTranslate.translate env !global_ctx !tsl_ctx sigma body in
+          | Some body -> let (sigma, body) = translate env !global_ctx !tsl_ctx sigma body in
                          (* let evdref = ref sigma in *)
                          (* let body = Typing.e_solve_evars env evdref body in *)
                          (* let sigma = !evdref in *)
@@ -237,7 +263,7 @@ let implement id typ = translate_implement (Implement typ) (Lib.make_path id)
 (*   (\* let sigma = !evdref in *\) *)
 (*   Feedback.msg_debug (str "typ:" ++ Printer.pr_constr_env env sigma typ); *)
 (*   Feedback.msg_debug (str "evarmap:" ++ Evd.pr_evar_map ~with_univs:true None sigma); *)
-(*   let typ_, sigma = MTranslate.translate_type env !global_ctx !tsl_ctx sigma typ in *)
+(*   let typ_, sigma = translate_type env !global_ctx !tsl_ctx sigma typ in *)
 (*   Feedback.msg_debug (str "typ':" ++ Printer.pr_constr_env env sigma typ_); *)
 (*   Feedback.msg_debug (str "evarmap:" ++ Evd.pr_evar_map None sigma); *)
 (*   (\* let (sigma, _) = Typing.type_of env sigma typ_ in *\) *)
@@ -251,8 +277,8 @@ let implement id typ = translate_implement (Implement typ) (Lib.make_path id)
 (*     (\** Attach the axiom to the implementation *\) *)
 (*     (\* Feedback.msg_debug (str "full_path:" ++ Libnames.pr_path (Lib.make_path id)); *\) *)
 (*     (\* Feedback.msg_debug (str "full_path:" ++ Libnames.pr_path (Lib.make_path id_)); *\) *)
-(*     let quoted_ident  = MTranslate.chars_of_string (Libnames.string_of_path (Lib.make_path id)) in *)
-(*     let quoted_ident' = MTranslate.chars_of_string (Libnames.string_of_path (Lib.make_path id_)) in *)
+(*     let quoted_ident  = chars_of_string (Libnames.string_of_path (Lib.make_path id)) in *)
+(*     let quoted_ident' = chars_of_string (Libnames.string_of_path (Lib.make_path id_)) in *)
 (*     tsl_ctx := (quoted_ident, quoted_ident' ) :: !tsl_ctx; *)
 (*   in *)
 (*   let hook ctx = Lemmas.mk_hook hook in *)
@@ -265,7 +291,7 @@ let implement id typ = translate_implement (Implement typ) (Lib.make_path id)
 
 (* let _ = register_handler *)
 (* 	begin function *)
-(* 	(\* | MTranslate.MissingGlobal gr -> *\) *)
+(* 	(\* | MissingGlobal gr -> *\) *)
 (* 	(\*    let ref = Nametab.shortest_qualid_of_global Id.Set.empty gr in *\) *)
 (* 	(\*    str "No translation for global " ++ Libnames.pr_qualid ref ++ str "." *\) *)
 (* 	| _ -> raise Unhandled *)

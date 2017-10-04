@@ -1,3 +1,4 @@
+open CErrors
 open Names
 open Term
 open Declarations
@@ -95,7 +96,6 @@ let dump v = dump (Obj.repr v)
 
 
        
-(* open Trad *)
 open Ast0
 open Pre_env
 
@@ -252,68 +252,3 @@ let rec string_of_term (t : Ast0.term) : string =
   | Coq_tProj (((Coq_mkInd (s, _), k), n), t) -> "Proj:" ^ string_of_chars s ^ string_of_int (unquote_nat n) ^ " (" ^ string_of_term t ^ ")"
   | Coq_tFix (* of Ast0.term Ast0.mfixpoint * Datatypes.nat *) _ -> "Fix"
   | Coq_tCoFix (* of Ast0.term Ast0.mfixpoint * Datatypes.nat *) _ -> "Cofix"
-
-
-let translate env global_ctx tsl_ctx sigma c =
-  Feedback.msg_debug (str "Quoting " ++ Printer.pr_constr_env env sigma c);
-  let c' = Template_coq.quote_term env c in
-  (* (match c' with *)
-  (*  | Coq_tConst s -> Feedback.msg_debug (str ("const:" ^ (string_of_chars s))) *)
-  (*  | Coq_tConstruct ((Coq_mkInd (s, n)), k) *)
-  (*    -> Feedback.msg_debug (str "constr:" ++ str (string_of_chars s) ++ int (unquote_nat n) ++ int (unquote_nat k)) *)
-  (*  | _ -> ()); *)
-  (* Feedback.msg_debug (str"Quoting env"); *)
-  (* let global_ctx, ctx = quote_ctx env in *)
-  Feedback.msg_debug (str"Tslting");
-  let c' = Trad.tsl global_ctx tsl_ctx [] c' in
-  (* let c' = c' in *)
-  Feedback.msg_debug (str"Tsl done");
-  let sigma, c'' = unquote sigma c' in
-  Feedback.msg_debug (str"Unquoting done");
-  (* let (((n,k),l), u) = Term.destConstruct c in *)
-  (* let (((n'',k''),l''), u'') = Term.destConstruct c'' in *)
-  (* Feedback.msg_debug (Univ.Instance.pr Univ.Level.pr u); *)
-  (* Feedback.msg_debug (Univ.Instance.pr Univ.Level.pr u''); *)
-  Feedback.msg_debug (str"Original term:");
-  (* Feedback.msg_debug (str (dump c)); *)
-  Feedback.msg_debug (Printer.pr_constr_env env sigma c);
-  Feedback.msg_debug (str"Translated term:");
-  (* Feedback.msg_debug (str (dump c'')); *)
-  Feedback.msg_debug (Printer.pr_constr_env env sigma c'');
-  (try 
-    let (n,t,u) = Term.destProd c'' in
-    Feedback.msg_debug (str"qslk2"++Printer.pr_constr_env env sigma t);
-    Feedback.msg_debug (str"qslk2"++Printer.pr_constr_env (Environ.push_rel (Context.Rel.Declaration.LocalAssum (n, mkRel 1)) env) sigma u);
-  with
-  | Term.DestKO -> ());
-  Feedback.msg_debug (str"Env:");
-  Feedback.msg_debug (Evd.pr_evar_map ~with_univs:true None sigma);
-  (c'', sigma)
-  
-let translate_type env global_ctx tsl_ctx sigma c =
-  let c' = Template_coq.quote_term env c in
-  let c' = Trad.tsl_type global_ctx tsl_ctx [] c' in
-  let sigma, c'' = unquote sigma c' in
-  Feedback.msg_debug (str"_ Original term:");
-  (* Feedback.msg_debug (str (dump c)); *)
-  Feedback.msg_debug (Printer.pr_constr_env env sigma c);
-  Feedback.msg_debug (str "evarmap:" ++ Evd.pr_evar_map ~with_univs:true None sigma);
-  Feedback.msg_debug (str"_ Translated term:");
-  Feedback.msg_debug (str (string_of_term c'));
-  (* Feedback.msg_debug (str (dump c'')); *)
-  (try 
-    let (t,[|u;v|]) = Term.destApp c'' in
-    Feedback.msg_debug (str"qslk2"++Printer.pr_constr_env env sigma t);
-    Feedback.msg_debug (str"qslk3"++Printer.pr_constr_env env sigma u);
-    let (p,t) = Term.destProj u in
-    Feedback.msg_debug (str"qslk2"++Names.Projection.print p);
-    let (t, u) = destConst t in
-    Feedback.msg_debug (str"qslk2"++Names.Constant.print t);
-  with
-  | _ -> ());
-
-  Feedback.msg_debug (Printer.pr_constr_env env sigma c'');
-  Feedback.msg_debug (str"_ Env:");
-  Feedback.msg_debug (Evd.pr_evar_map ~with_univs:true None sigma);
-  (* Feedback.msg_debug (Printer.pr_universe_ctx sigma  *)
-  (c'', sigma)

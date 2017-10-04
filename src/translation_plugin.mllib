@@ -19,8 +19,10 @@ Typing0
 Checker
 Template_coq
 
-Trad
-MTranslate
+Translation_utils
+Tsl_param
+Tsl_fun
+Unquote
 MPlugin
 Translation_plugin
 Translation_plugin_mod
