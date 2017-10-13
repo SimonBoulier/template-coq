@@ -8,6 +8,8 @@ src/tsl_param.mli
 src/tsl_param.ml
 src/tsl_fun.mli
 src/tsl_fun.ml
+src/tsl_p.mli
+src/tsl_p.ml
 
 src/unquote.mli
 src/unquote.ml

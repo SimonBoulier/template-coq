@@ -204,7 +204,14 @@ simple refine (existᶠ · _ · _ · _ · _).
 Defined.
 
 
+Definition FALSE := forall X, X.
+Translate FALSE.
 
+Proposition consistency_preservation : El FALSEᵗ -> FALSE.
+  compute.
+  intros [f _] X.
+  exact (f (X; fun _ => unit)).
+Defined.
 
 
   

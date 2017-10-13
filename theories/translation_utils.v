@@ -72,3 +72,8 @@ Definition proj2 (t : term) : term
 Definition proj (b : bool) (t : term) : term
   := tProj (mkInd "Template.sigma.sigma" 0, 2, if b then 0 else 1) t.
 
+Quote Definition tBool := bool.
+Quote Definition tTrue := true.
+Definition timesBool (t : term) :=
+  tApp tSigma [t; tLambda nAnon t tBool].
+Definition pairTrue typ t := pair typ tBool t tTrue.

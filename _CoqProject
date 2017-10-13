@@ -17,3 +17,4 @@ theories/sigma.v
 theories/translation_utils.v
 theories/tsl_param.v
 theories/tsl_fun.v
+theories/tsl_p.v

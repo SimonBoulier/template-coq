@@ -11,7 +11,7 @@ open Proofview.Notations
 open Entries
 open Unquote
 open Translation_utils
-open Tsl_param
+open Tsl_p
        
 (** Utilities *)
 
