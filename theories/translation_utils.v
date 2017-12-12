@@ -14,7 +14,7 @@ Hint Resolve String.string_dec Peano_dec.eq_nat_dec : eq_dec.
 Definition string_of_gref gr :=
   match gr with
   | ConstRef s => s
-  | IndRef (mkInd s n) => "todo" ++ s 
+  | IndRef (mkInd s n) => "todo" ++ s
   | ConstructRef (mkInd s n) k => "todo" ++ s
   end.
 

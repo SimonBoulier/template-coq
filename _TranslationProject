@@ -13,8 +13,8 @@ src/tsl_p.ml
 
 src/unquote.mli
 src/unquote.ml
-src/mPlugin.mli
-src/mPlugin.ml
+src/translation_plugin_main.mli
+src/translation_plugin_main.ml
 src/translation_plugin.ml4
 src/translation_plugin_mod.ml
 src/translation_plugin.mllib

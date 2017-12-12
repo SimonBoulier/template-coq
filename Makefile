@@ -22,9 +22,6 @@ Makefile.coqplugin: _CompilerProject
 Makefile.coqchecker: _CheckerProject
 	$(COQBIN)coq_makefile -f _CheckerProject -o Makefile.coqchecker
 
-Makefile.coqchecker: _CheckerProject
-	$(COQBIN)coq_makefile -f _CheckerProject -o Makefile.coqchecker
-
 Makefile.translation: _TranslationProject
 	$(COQBIN)coq_makefile -f _TranslationProject -o Makefile.translation
 

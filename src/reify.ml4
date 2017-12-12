@@ -704,7 +704,7 @@ let kn_of_canonical_string s =
     Names.make_kn mp Names.empty_dirpath (Names.mk_label nm)
   | _ -> assert false
 
-  
+
 module Denote =
 struct
 

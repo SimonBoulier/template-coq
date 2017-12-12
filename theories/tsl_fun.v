@@ -46,11 +46,11 @@ Fixpoint tsl_rec (fuel : nat) (Σ : global_context) (E : tsl_context) (Γ : cont
   | tConstruct _ _ as t => ret t
   | tProj p t => t' <- tsl_rec fuel Σ E Γ t ;;
                 ret (tProj p t)
-  | _ => raise TranslationNotHandeled
+  | _ => raise TranslationNotHandeled (* var evar meta case fix cofix *)
   end end.
 
-Definition tsl := fun Σ E => tsl_rec 1000 Σ E [].
-Definition tsl_type := fun Σ E => tsl_rec 1000 Σ E [].
+Definition tsl := fun Σ E => tsl_rec fuel Σ E [].
+Definition tsl_type := tsl.
 
 
 

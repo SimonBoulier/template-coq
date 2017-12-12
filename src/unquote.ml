@@ -95,7 +95,7 @@ let dump v = dump (Obj.repr v)
 
 
 
-       
+
 open Ast0
 open Pre_env
 
@@ -143,13 +143,16 @@ let rec unquote_nat : Datatypes.nat -> int = function
 let string_of_chars (l : char list) : string =
   String.init (List.length l) (List.nth l)
 
+let chars_of_string (s : string) =
+  Array.to_list (Array.init (String.length s) (String.get s))
+
 let unquote_ident (i : Ast0.ident) : Names.Id.t =
   Names.id_of_string (string_of_chars i)
 
 let unquote_name : Ast0.name -> Names.Name.t = function
   | Coq_nAnon -> Anonymous
   | Coq_nNamed i -> Name (unquote_ident i)
-                         
+
 let unquote_sort sigma s =
   match s with
   | Coq_sProp -> sigma, Term.mkProp
@@ -163,8 +166,8 @@ let unquote_cast = function
   | NativeCast -> NATIVEcast
   | Cast -> DEFAULTcast
   | RevertCast -> REVERTcast
-                    
-                                    
+
+
 let sigma_map (f : 's -> 'a -> 's * 'b) (s : 's) (l : 'a list) : 's * ('b list) =
   let s, l' = List.fold_left (fun (s, l) a -> let s'', b = f s a in s'', b :: l) (s, []) l in
   s, List.rev l'
@@ -172,8 +175,8 @@ let sigma_map (f : 's -> 'a -> 's * 'b) (s : 's) (l : 'a list) : 's * ('b list) 
 
 let unquote_inductive (Coq_mkInd (s, n) : Ast0.inductive) =
   Names.mind_of_kn (Reify.kn_of_canonical_string (string_of_chars s)), unquote_nat n
-              
-                         
+
+
 let rec unquote sigma (t : Ast0.term) : Evd.evar_map * Term.constr =
   match t with
   | Coq_tRel n -> sigma, mkRel (unquote_nat n + 1)

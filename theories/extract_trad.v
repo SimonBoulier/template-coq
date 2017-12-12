@@ -1,10 +1,7 @@
-(** Extraction setup for template-coq.
-    
-    Any extracted code planning to link with the plugin's OCaml reifier
-    should use these same directives for consistency.
-*)
+(** Extraction for translation plugin *)
 
-Require Import Template.translation_utils Template.tsl_param Template.tsl_fun Template.tsl_p.
+Require Import Template.translation_utils Template.tsl_param
+Template.tsl_fun Template.tsl_p.
 
 Require Import ExtrOcamlBasic.
 Require Import ExtrOcamlString.
