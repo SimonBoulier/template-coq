@@ -10,8 +10,7 @@ open Globnames
 open Proofview.Notations
 open Entries
 open Unquote
-open Translation_utils
-open Tsl_p
+open Tsl_fun
        
 (** Utilities *)
 
@@ -22,7 +21,7 @@ let translate_name id =
 (** Record of translation between globals *)
 
 let global_ctx : Typing0.global_context ref = ref []
-let tsl_ctx : tsl_context ref = ref []
+let tsl_ctx : Translation_utils.tsl_context ref = ref []
 
 let add_global_ctx x =
   global_ctx := x :: !global_ctx
@@ -39,9 +38,9 @@ let string_of_global_ctx g =
   List.iter (fun x -> s := !s ^ (string_of_global_decl x) ^ "; ") g;
   !s ^ "]"
 
-let string_of_tsl_ctx g =
+let string_of_tsl_ctx (g:Translation_utils.tsl_context) =
   let s = ref "[" in
-  List.iter (fun (x, y) -> s := !s ^ "(" ^ (string_of_chars x) ^ "," ^ (string_of_chars y) ^ "); ") g;
+  List.iter (fun (x, y) -> s := !s ^ "(" ^ (string_of_chars (string_of_gref x)) ^ "," ^ (Unquote.string_of_term y) ^ "); ") g;
   !s ^ "]"
 
 let string_of_array pr a =
@@ -130,18 +129,18 @@ let dump v = dump (Obj.repr v)
 
 
 let string_of_error = function
-  | NotEnoughFuel -> "Not enough fuel"
-  | TranslationNotFound t -> "Translation of " ^ string_of_chars t ^ " not found"
-  | TranslationNotHandeled -> "Translation not handeled"
-  | TypingError -> "Typing error"
+  | Translation_utils.NotEnoughFuel -> "Not enough fuel"
+  | Translation_utils.TranslationNotFound t -> "Translation of " ^ string_of_chars t ^ " not found"
+  | Translation_utils.TranslationNotHandeled -> "Translation not handeled"
+  | Translation_utils.TypingError -> "Typing error"
 
 let wrap_extracted_function f =
   fun env global_ctx tsl_ctx sigma c ->
   let c = Template_coq.quote_term env c in
   let c = f global_ctx tsl_ctx c in
   let c = match c with
-    | Success x -> x
-    | Error e -> error ("Translation raised an error: " ^ string_of_error e) in
+    | Translation_utils.Success x -> x
+    | Translation_utils.Error e -> error ("Translation raised an error: " ^ string_of_error e) in
   unquote sigma c
 
 let translate = wrap_extracted_function tsl
@@ -149,23 +148,28 @@ let translate_type = wrap_extracted_function tsl_type
 
 
 
+let quote_gr : global_reference -> Translation_utils.global_reference = function
+  | VarRef _ -> failwith "not handeled"
+  | ConstRef c -> Translation_utils.ConstRef (Template_coq.quote_string (Names.Constant.to_string c))
+  | IndRef (i, n) -> Translation_utils.IndRef (Ast0.Coq_mkInd (Template_coq.quote_string (Names.string_of_kn (Names.canonical_mind i)), Template_coq.quote_int n))
+  | ConstructRef ((i,n),k) -> Translation_utils.ConstructRef ((Ast0.Coq_mkInd (Template_coq.quote_string (Names.string_of_kn (Names.canonical_mind i)), Template_coq.quote_int n)), Template_coq.quote_int k)
 
                   
 
 type translation_operation = Translate of global_reference | ImplementExisting of global_reference | Implement of Constrexpr.constr_expr
 
-let translate_implement op id id' =
+let translate_implement op (id : global_reference) id' =
   let s = match op with
     | Translate _ -> "Translate "
     | ImplementExisting _ -> "Implement Existing "
     | Implement _ -> "Implement " in
-  Feedback.msg_debug(str s ++ Libnames.pr_path id);
+  Feedback.msg_debug(str s ++ Printer.pr_global id);
   Feedback.msg_debug (str ("global env: " ^ (string_of_global_ctx !global_ctx)));
   Feedback.msg_debug (str ("tsl env: " ^ (string_of_tsl_ctx !tsl_ctx)));
-  let quoted_id  = chars_of_string (Libnames.string_of_path id) in
+  let quoted_id  = quote_gr id in
   let id' = match id' with
     | Some id -> id
-    | None -> translate_name (Libnames.basename id)
+    | None -> translate_name (Nametab.basename_of_global id)
   in
   let quoted_id' = chars_of_string (Libnames.string_of_path (Lib.make_path id')) in
   let env   = Global.env () in
@@ -179,8 +183,8 @@ let translate_implement op id id' =
   let end_with hook decl =
     hook ();
     Option.iter add_global_ctx decl;
-    add_tsl_ctx (quoted_id, quoted_id');
-    Feedback.msg_info (Libnames.pr_path id ++ str" has been translated as " ++ Names.Id.print id' ++ str".") in
+    add_tsl_ctx (quoted_id, Ast0.Coq_tConst quoted_id');
+    Feedback.msg_info (Printer.pr_global id ++ str" has been translated as " ++ Names.Id.print id' ++ str".") in
   match op with
   | Translate gr ->
      (match gr with
@@ -226,8 +230,8 @@ let translate_implement op id id' =
      Lemmas.start_proof id' kind sigma typ' (Lemmas.mk_hook (fun _ _ -> end_with hook None))
        
 
-let translate gr = let gr = Nametab.global gr in translate_implement (Translate gr) (Nametab.path_of_global gr)
-let implement_existing gr = let gr = Nametab.global gr in translate_implement (ImplementExisting gr) (Nametab.path_of_global gr)
+let translate gr = translate_implement (Translate gr) gr
+let implement_existing gr = translate_implement (ImplementExisting gr) gr
 let implement id typ = translate_implement (Implement typ) (Lib.make_path id)
 
 

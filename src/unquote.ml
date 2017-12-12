@@ -143,11 +143,6 @@ let rec unquote_nat : Datatypes.nat -> int = function
 let string_of_chars (l : char list) : string =
   String.init (List.length l) (List.nth l)
 
-let chars_of_string (s : string) : char list =
-  let l = ref [] in
-  String.iter (fun c -> l := c :: !l) s;
-  List.rev !l
-
 let unquote_ident (i : Ast0.ident) : Names.Id.t =
   Names.id_of_string (string_of_chars i)
 

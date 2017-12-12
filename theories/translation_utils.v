@@ -1,31 +1,65 @@
 Require Import Template.Ast Template.Typing Template.Checker.
 Require Import List.
-Import ListNotations.
+Import ListNotations String.
+Open Scope string_scope.
 
+Inductive global_reference :=
+    (* VarRef of Names.variable *)
+  | ConstRef : ident -> global_reference
+  | IndRef : inductive -> global_reference
+  | ConstructRef : inductive -> nat -> global_reference.
 
-Definition tsl_context := list (ident * ident).
+Hint Resolve String.string_dec Peano_dec.eq_nat_dec : eq_dec.
 
-Fixpoint lookup_tsl_ctx (E : tsl_context) (id : ident) : option ident :=
+Definition string_of_gref gr :=
+  match gr with
+  | ConstRef s => s
+  | IndRef (mkInd s n) => "todo" ++ s 
+  | ConstructRef (mkInd s n) k => "todo" ++ s
+  end.
+
+Definition gref_eq_dec
+  : forall gr gr' : global_reference, {gr = gr'} + {~ gr = gr'}.
+  decide equality; eauto with eq_dec.
+  destruct i, i0.
+  decide equality; eauto with eq_dec.
+  destruct i, i0.
+  decide equality; eauto with eq_dec.
+Defined.
+
+Definition tsl_context := list (global_reference * term).
+
+Fixpoint lookup_tsl_ctx (E : tsl_context) (id : global_reference)
+  : option term :=
   match E with
   | nil => None
   | hd :: tl =>
-    if ident_eq id (fst hd) then Some (snd hd)
+    if gref_eq_dec id (fst hd) then Some (snd hd)
     else lookup_tsl_ctx tl id
   end.
 
 
-Section MonadMap.
+Section MonadOperations.
   Import MonadNotation.
   Context {T} {M : Monad T}.
 
-  Fixpoint monad_map {A} {B} (f : A -> T B) (l : list A) : T (list B)
+  Fixpoint monad_map {A B} (f : A -> T B) (l : list A)
+    : T (list B)
     := match l with
        | nil => ret nil
        | x :: l => x' <- f x ;;
                   l' <- monad_map f l ;;
                   ret (x' :: l')
        end.
-End MonadMap.
+
+  Fixpoint monad_fold_left {A B} (f : A -> B -> T A) (l : list B) (x : A)
+    : T A
+    := match l with
+       | nil => ret x
+       | y :: l => x' <- f x y ;;
+                     monad_fold_left f l x'
+       end.
+End MonadOperations.
 
 
 Inductive tsl_error :=

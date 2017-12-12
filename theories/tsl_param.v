@@ -66,15 +66,20 @@ with tsl_term  (fuel : nat) (Σ : global_context) (E : tsl_context) (Γ : contex
   | tCast t c A => t' <- tsl_term fuel Σ E Γ t ;;
                   A' <- tsl_typ fuel Σ E Γ A ;;
                   ret (tCast t' c A')
-  | tConst s
-  | tInd (mkInd s _) => match lookup_tsl_ctx E s with
-                       | Some t => ret (tConst t)
-                       | None => raise (TranslationNotFound s)
-                       end
-  | tConstruct (mkInd s _) n => match lookup_env Σ s with
-                               | Some decl => raise TranslationNotHandeled
-                               | None => raise (TranslationNotFound s)
-                               end
+  | tConst s => match lookup_tsl_ctx E (ConstRef s) with
+               | Some t => ret t
+               | None => raise (TranslationNotFound s)
+               end
+  | tInd i =>
+    match lookup_tsl_ctx E (IndRef i) with
+    | Some t => ret t
+    | None => raise (TranslationNotFound (string_of_gref (IndRef i)))
+    end
+  | tConstruct i n =>
+    match lookup_tsl_ctx E (ConstructRef i n) with
+    | Some decl => raise TranslationNotHandeled
+    | None => raise (TranslationNotFound (string_of_gref (ConstructRef i n)))
+    end
   | t => match infer Σ Γ t with
         | Checked typ => t1 <- tsl_rec fuel Σ E Γ true t ;;
                         t2 <- tsl_rec fuel Σ E Γ false t ;;

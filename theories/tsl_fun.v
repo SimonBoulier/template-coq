@@ -38,8 +38,8 @@ Fixpoint tsl_rec (fuel : nat) (Σ : global_context) (E : tsl_context) (Γ : cont
   | tApp t u => t' <- tsl_rec fuel Σ E Γ t ;;
                u' <- monad_map (tsl_rec fuel Σ E Γ) u ;;
                ret (tApp (proj1 t') u')
-  | tConst s => match lookup_tsl_ctx E s with
-               | Some t => ret (tConst t)
+  | tConst s => match lookup_tsl_ctx E (ConstRef s) with
+               | Some t => ret t
                | None => raise (TranslationNotFound s)
                end
   | tInd _ as t
@@ -98,16 +98,6 @@ Definition tsl_type := fun Σ E => tsl_rec 1000 Σ E [].
 
 (* Definition tsl := fun Σ E => tsl_rec 1000 Σ E []. *)
 (* Definition tsl_type := fun Σ E => tsl_rec 1000 Σ E []. *)
-
-
-
-(* Fixpoint monad_fold_left {T} {M : Monad T} {A B} (f : A -> B -> T A) *)
-(*          (l : list B) (x : A) {struct l} : T A *)
-(*   := match l with *)
-(*      | nil => ret x *)
-(*      | y :: l => x' <- f x y ;; *)
-(*                 monad_fold_left f l x' *)
-(*      end. *)
 
 (* Definition tsl_inductive_decl (Σ : global_context) (E : tsl_context) *)
 (*            (id : ident) (m : minductive_decl) *)
