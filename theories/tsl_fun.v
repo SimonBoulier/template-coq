@@ -25,7 +25,7 @@ Fixpoint tsl_rec (fuel : nat) (Σ : global_context) (E : tsl_context) (Γ : cont
                     | Checked B =>
                       B' <- tsl_rec fuel Σ E (Γ ,, vass n A) B ;;
                       ret (pairTrue (tProd n A' B') (tLambda n A' t'))
-                    | TypeError _ => raise TypingError
+                    | TypeError t => raise (TypingError t)
                     end
   | tLetIn n t A u => t' <- tsl_rec fuel Σ E Γ t ;;
                      A' <- tsl_rec fuel Σ E Γ A ;;

@@ -10,7 +10,7 @@ open Globnames
 open Proofview.Notations
 open Entries
 open Unquote
-open Tsl_fun
+open Tsl_param
 
 (** Utilities *)
 
@@ -48,12 +48,28 @@ let string_of_array pr a =
   Array.iter (fun x -> s := !s ^ (pr x) ^ "; ") a;
   !s ^ "|]"
 
-
+let string_of_type_error s =
+  let open Checker in
+  match s with
+  | UnboundRel _ -> "UnboundRel"
+  | UnboundVar _ -> "UnboundVar"
+  | UnboundMeta _ -> "UnboundMeta"
+  | UnboundEvar _ -> "UnboundEvar"
+  | UndeclaredConstant c -> "UndeclaredConstant " ^ string_of_chars c
+  | UndeclaredInductive _ -> "UndeclaredInductive"
+  | UndeclaredConstructor _ -> "UndeclaredConstructor"
+  | NotConvertible _ -> "NotConvertible"
+  | NotASort _ -> "NotASort"
+  | NotAProduct _ -> "NotAProduct"
+  | NotAnInductive _ -> "NotAnInductive"
+  | IllFormedFix _ -> "IllFormedFix"
+  | NotEnoughFuel _ -> "NotEnoughFuel"
+                       
 let string_of_error = function
   | Translation_utils.NotEnoughFuel -> "Not enough fuel"
   | Translation_utils.TranslationNotFound t -> "Translation of " ^ string_of_chars t ^ " not found"
   | Translation_utils.TranslationNotHandeled -> "Translation not handeled"
-  | Translation_utils.TypingError -> "Typing error"
+  | Translation_utils.TypingError t -> "Typing error: " ^ string_of_type_error t
 
 let wrap_extracted_function f =
   fun env global_ctx tsl_ctx sigma c ->
@@ -87,12 +103,12 @@ let translate_implement op (id : Names.Id.t) id' =
   Feedback.msg_debug(str s ++ Ppconstr.pr_id id);
   Feedback.msg_debug (str ("global env: " ^ (string_of_global_ctx !global_ctx)));
   Feedback.msg_debug (str ("tsl env: " ^ (string_of_tsl_ctx !tsl_ctx)));
-  let quoted_id  = Template_coq.quote_ident id in
   let id' = match id' with
     | Some id -> id
     | None -> translate_name id
   in
-  let quoted_id' = chars_of_string (Libnames.string_of_path (Lib.make_path id')) in
+  let quoted_ref  = chars_of_string (Libnames.string_of_path (Lib.make_path id)) in
+  let quoted_ref' = chars_of_string (Libnames.string_of_path (Lib.make_path id')) in
   let env   = Global.env () in
   let sigma = Evd.from_env env in
   let sigma, typ = match op with
@@ -104,7 +120,7 @@ let translate_implement op (id : Names.Id.t) id' =
   let end_with hook decl =
     let gr = hook () in
     Option.iter add_global_ctx decl;
-    add_tsl_ctx (gr, Ast0.Coq_tConst quoted_id');
+    add_tsl_ctx (gr, Ast0.Coq_tConst quoted_ref');
     Feedback.msg_info (Ppconstr.pr_id id ++ str" has been translated as " ++ Names.Id.print id' ++ str".") in
   match op with
   | Translate gr ->
@@ -121,9 +137,9 @@ let translate_implement op (id : Names.Id.t) id' =
                          let cd = Entries.DefinitionEntry ce in
                          let decl = (cd, IsProof Theorem) in
                          let _ = Declare.declare_constant id' decl in
-                         let decl = Ast0.{ cst_name = quoted_id; cst_type = Template_coq.quote_term env typ;
+                         let decl = Ast0.{ cst_name = quoted_ref; cst_type = Template_coq.quote_term env typ;
                                            cst_body = Some (Template_coq.quote_term env body) (* TODO not unquote twice *) } in
-                         end_with (fun () -> quote_gr gr) (Some (Ast0.ConstantDecl (quoted_id, decl)))
+                         end_with (fun () -> quote_gr gr) (Some (Ast0.ConstantDecl (quoted_ref, decl)))
           | _ -> error "Please use 'Implement Existing' to translate an axioms.")
       | IndRef ind ->
          error "Please use 'Implement Existing' to translate inductive types."
@@ -135,9 +151,9 @@ let translate_implement op (id : Names.Id.t) id' =
        | ConstRef cst ->
           (match Global.body_of_constant cst with
            | Some body -> error "Please use 'Translate' to translate definitions."
-           | None -> let decl = Ast0.{ cst_name = quoted_id; cst_type = Template_coq.quote_term env typ;
+           | None -> let decl = Ast0.{ cst_name = quoted_ref; cst_type = Template_coq.quote_term env typ;
                                        cst_body = None } in
-                     Some (Ast0.ConstantDecl (quoted_id, decl)))
+                     Some (Ast0.ConstantDecl (quoted_ref, decl)))
        | IndRef (ind, _) -> Some (Template_coq.quote_mind_decl env ind)
        | ConstructRef c -> None
        | VarRef _ -> error "Translation of variables not handled." in

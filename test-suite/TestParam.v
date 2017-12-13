@@ -177,9 +177,10 @@ Translate not.
 
 Definition HasTwoElFstComponentᶠ : El (Typeᶠ →ᶠ Typeᶠ) :=
   λᶠ (T : El Typeᶠ), mkTYPE (exists (x y : T.1), x = y -> False) (fun _ => unit).
-
-Implement notUnivalence :
-  exists A B, (equiv A B) × exists P, P A × not (P B).
+Definition s := sigma.
+Translate s.
+Implement notUnivalence : 
+  exists A B : Type, (equiv A B) × exists P, P A × not (P B).
 Proof.
 simple refine (existᶠ · _ · _ · _ · _).
 exact (bool:Type; fun _=> unit:Type).

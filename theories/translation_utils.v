@@ -63,10 +63,10 @@ End MonadOperations.
 
 
 Inductive tsl_error :=
-| NotEnoughFuel : tsl_error
-| TranslationNotFound : ident -> tsl_error
+| NotEnoughFuel
+| TranslationNotFound (id : ident)
 | TranslationNotHandeled
-| TypingError.
+| TypingError (t : type_error).
 
 Inductive tsl_result A :=
 | Success : A -> tsl_result A

@@ -86,7 +86,7 @@ with tsl_term  (fuel : nat) (Σ : global_context) (E : tsl_context) (Γ : contex
                         typ1 <- tsl_rec fuel Σ E Γ true typ ;;
                         typ2 <- tsl_rec fuel Σ E Γ false typ ;;
                         ret (pair typ1 typ2 t1 t2)
-        | _ => raise TypingError
+        | TypeError t => raise (TypingError t)
         end
   end
   end
