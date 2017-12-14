@@ -2,7 +2,7 @@ open Constrarg
 open Extraargs
 open Translation_plugin_main
 
-DECLARE PLUGIN "translation2"
+DECLARE PLUGIN "translation"
 
 
 
