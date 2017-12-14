@@ -100,6 +100,12 @@ Instance monad_exc : MonadExc tsl_error tsl_result :=
   }.
 
 
+
+Class Translation := { tsl_tm : global_context -> tsl_context -> term -> tsl_result term }.
+
+Class TranslationType := { tsl_typ : global_context -> tsl_context -> term -> tsl_result term }.
+
+
 Require Import Template.Template Template.sigma.
 
 Quote Definition tSigma := sigma.

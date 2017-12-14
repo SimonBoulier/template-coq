@@ -1,12 +1,13 @@
 (* -*- coq-prog-args : ("-debug" "-type-in-type") -*-  *)
 
+Require Import Template.Ast Template.translation_utils.
+Require Import Template.tsl_fun.
 Require Import Template.Translation Template.sigma.
 Open Scope sigma_scope.
 
 Let T := Type.
 Check (T : T).
 
-Require Import Template.tsl_fun.
 Locate tsl.
 (* Translate pair. *)
 (* (* Translate fst'. *) *)
@@ -16,6 +17,20 @@ Locate tsl.
 (* Translate false. *)
 
 (* Definition n : (fun x => x) Type := nat. *)
+Implement Existing nat. exact nat. Defined.
+
+Implement Existing bool.
+exact (bool*bool)%type.
+Defined.
+
+(* todo: fix the translation of inductives *)
+Implement Existing true.
+exact true.
+Defined.
+
+Definition t7 := fun x : nat => (fun y : bool => x).
+Translate t7.
+
 
 Definition g := prod Prop Type.
 Definition f := g.
@@ -44,7 +59,7 @@ Implement t3 : t2 = t2.
 econstructor.
 Defined.
 
-Definition t3' := pair t3 nat.
+Definition t3' := Datatypes.pair t3 nat.
 Translate t3'.
 Print t3'ᵗ.
 
@@ -55,7 +70,6 @@ Defined.
 Definition t5 := forall X:Set, X.
 Translate t5.
 Print t5ᵗ.
-                   
 
 (* (* Axiom a : forall X, X. *) *)
 
@@ -110,14 +124,6 @@ Proof.
   discriminate H.
 Defined.
 
-Implement Existing bool.
-exact (bool*bool)%type.
-Defined.
-
-(* todo: fix the translation of inductives *)
-Implement Existing true.
-exact true.
-Defined.
 
 (* (* (* A more constructive version on inhabited types. *) *) *)
 (* (* Implement notFunext' : forall (A B : Type), *) *)

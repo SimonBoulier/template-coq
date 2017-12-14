@@ -15,6 +15,8 @@ open Reify.TermReify
 (** Utilities *)
 
 open Feedback
+
+let debug n = Feedback.msg_debug (int n)
        
 let translate_name id =
   let id = Id.to_string id in
@@ -22,7 +24,7 @@ let translate_name id =
 
 (** Record of translation between globals *)
 
-let pkg_tsl = ["Template";"tsl_fun"]
+let pkg_tsl = ["Template";"tsl_param"]
 let pkg_ast = ["Template";"Ast"]
 let pkg_tsl_utils = ["Template";"translation_utils"]
 let pkg_datatypes = ["Coq";"Init";"Datatypes"]
@@ -37,9 +39,6 @@ let rsu = resolve_symbol pkg_tsl_utils
 let rsa = resolve_symbol pkg_ast
 let rsdt = resolve_symbol pkg_datatypes
                         
-let tsl = resolve_symbol pkg_tsl "tsl"
-let tsl_type = resolve_symbol pkg_tsl "tsl_type"
-                      
 let global_ctx : Term.constr ref = ref (resolve_symbol pkg_tsl_utils "empty_global_ctx")
 let tsl_ctx : Term.constr ref = ref (resolve_symbol pkg_tsl_utils "empty_tsl_ctx")
 
@@ -56,8 +55,6 @@ let quote_option env (t : Term.constr option) : Term.constr (* de type Option te
   match t with
   | Some t -> Term.mkApp (rsdt "Some", [|rsa "term"; quote_term env t|])
   | None -> rsdt "None"
-                        
-(* let quote_mind_decl env mind : Term.constr = d *)
 
 let quote_constant_decl env cst : Term.constr (* constant_decl *) =
   let decl = Environ.lookup_constant cst env in
@@ -66,12 +63,41 @@ let quote_constant_decl env cst : Term.constr (* constant_decl *) =
   let optbody = Declareops.body_of_constant (Environ.opaque_tables env) decl in
   let optbody = quote_option env optbody in
   Term.mkApp (rsa "Build_constant_decl", [|id; ty; optbody|])
+                        
+(* let quote_inductive_body env (ind : Declarations.one_inductive_body) : Term.constr (\* inductive_body *\) = *)
+(*   let open Declarations in *)
+(*   let name = ind in *)
+(*   let typ = k in *)
+(*   let kelim = l in *)
+(*   let ctors = l in *)
+(*   let projs = l in *)
+(*   Term.mkApp (rsa "mkinductive_body", [|name; typ; kelim; ctors; projs|]) *)
+
+(* let quote_mind_decl2 env mind : Term.constr (\* minductive_decl *\) = *)
+(*   let open Declarations in *)
+(*   let decl = Environ.lookup_mind mind env in *)
+(*   let npars = int_to_nat decl.mind_nparams in *)
+(*   let bodies = to_coq_list (rsa "term") (List.map (quote_inductive_body env) (Array.to_list decl.mind_packets)) in *)
+(*   Term.mkApp (rsa "Build_minductive_decl", [|npars; bodies|]) *)
+
+let quote_mind_decl2 env mind : Term.constr (* minductive_decl *) =
+  let t = quote_mind_decl env mind in
+  debug 21;
+  msg_debug (Printer.pr_constr t);
+  let (h,args) = Term.destApp t in
+  if Term.eq_constr h (rsa "PType") then
+    match args with
+    | [| _ ; npars ; bodies|] ->
+       Term.mkApp (rsa "Build_minductive_decl", [|npars; bodies|])
+    | _ -> failwith "bad term (more applied?)"
+  else
+    failwith "strange quote_mind_decl2"
 
 let quote_gr_decl env (gr:global_reference) =
   match gr with
   | VarRef _ -> failwith "var"
   | ConstRef cst -> Some (Term.mkApp (rsa "ConstantDecl", [|quote_kn (Names.Constant.canonical cst); quote_constant_decl env cst|]))
-  (* | IndRef (mind,0) -> Some (Term.mkApp (rsa "InductiveDecl", [|quote_kn (Names.MutInd.canonical mind); quote_mind_decl env mind|])) *)
+  | IndRef (mind,0) -> Some (Term.mkApp (rsa "InductiveDecl", [|quote_kn (Names.MutInd.canonical mind); quote_mind_decl2 env mind|]))
   (* | IndRef _ -> None *)
   (* | ConstructRef _ -> None *)
   | _ -> None
@@ -95,17 +121,36 @@ let from_tsl_result trm =
 
 let wrap_tsl_function f env sigma typ =
   let typ = Reify.TermReify.quote_term env typ in
+  (* debug 10; *)
   let tc = Term.mkApp (f, [|!global_ctx; !tsl_ctx; typ|]) in
+  debug 11; msg_debug (Printer.pr_constr tc);
   let t = Reductionops.nf_all env sigma tc in
   let t = from_tsl_result t in
-  msg_debug (Printer.pr_constr t);
+  (* msg_debug (Printer.pr_constr t); *)
   let sigmaref = ref sigma in
   let t = Reify.Denote.denote_term sigmaref t in
-  msg_debug (Printer.pr_constr t);
+  (* debug 13; *)
+  msg_debug (str "tsl type/tm: " ++ Printer.pr_constr t);
   (!sigmaref, t)
 
-let translate = wrap_tsl_function tsl
-let translate_type = wrap_tsl_function tsl_type
+(* let tsl = resolve_symbol pkg_tsl "tsl" *)
+(* let tsl_type = resolve_symbol pkg_tsl "tsl_type" *)
+                      
+let translate =
+  let env = Global.env () in
+  debug 7;
+  let (_, tsl) = Typeclasses.resolve_one_typeclass env (Evd.from_env env) (rsu "Translation") in (* unsafe *)
+  (* let p = rsu "tsl_tm" in *)
+  (* msg_debug (Printer.pr_constr p);   *)
+  (* let tsl = mkProj (p,tsl) in *)
+  wrap_tsl_function (Term.mkApp (rsu "tsl_tm", [|tsl|]))
+                    
+let translate_type =
+  let env = Global.env () in
+  let (_, tsl) = Typeclasses.resolve_one_typeclass env (Evd.from_env env) (rsu "TranslationType") in (* unsafe *)
+  let t = (Term.mkApp (rsu "tsl_typ", [|tsl|])) in
+  msg_debug (Printer.pr_constr t);
+  wrap_tsl_function t
 
 type translation_operation = Translate of global_reference | ImplementExisting of global_reference | Implement of Constrexpr.constr_expr
 
@@ -143,7 +188,9 @@ let translate_implement op (id : Names.Id.t) id' =
      (match gr with
       | ConstRef cst ->
          (match Global.body_of_constant cst with
-          | Some body -> let (sigma, body) = translate env sigma body in
+          | Some body ->
+                         (* debug 1; msg_debug (Printer.pr_constr body); *)
+                         let (sigma, body) = translate env sigma body in debug 2;
                          (* let evdref = ref sigma in *)
                          (* let body = Typing.e_solve_evars env evdref body in *)
                          (* let sigma = !evdref in *)

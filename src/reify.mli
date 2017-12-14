@@ -69,6 +69,7 @@ val kn_of_canonical_string : string -> Names.kernel_name
 
 module TemplateCoqQuoter : sig
   val resolve_symbol : string list -> string -> Term.constr
+  val to_coq_list : Term.constr (* the type *) -> Term.constr list -> Term.constr
   val int_to_nat : int -> Term.constr
   val quote_string : string -> Term.constr
   val quote_kn : Names.kernel_name -> Term.constr
@@ -77,6 +78,7 @@ end
                                          
 module TermReify : sig
   val quote_term : Environ.env -> Term.constr -> Term.constr
+  val quote_mind_decl : Environ.env -> Names.mutual_inductive -> Term.constr
 end
 
 module Denote : sig

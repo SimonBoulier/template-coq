@@ -21,5 +21,5 @@ src/translation_plugin.mllib
 
 theories/Translation.v
 
-# test-suite/TestParam.v
-test-suite/TestFun.v
+test-suite/TestParam.v
+# test-suite/TestFun.v
