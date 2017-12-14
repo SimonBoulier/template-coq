@@ -2,13 +2,13 @@
 
 Require Import Template.Ast Template.translation_utils.
 Require Import Template.tsl_fun.
-Require Import Template.Translation Template.sigma.
+Require Import Template.sigma.
 Open Scope sigma_scope.
+Declare ML Module "translation_plugin".
 
 Let T := Type.
 Check (T : T).
 
-Locate tsl.
 (* Translate pair. *)
 (* (* Translate fst'. *) *)
 (* (* Translate snd'. *) *)
@@ -17,6 +17,7 @@ Locate tsl.
 (* Translate false. *)
 
 (* Definition n : (fun x => x) Type := nat. *)
+Print Instances Translation.
 Implement Existing nat. exact nat. Defined.
 
 Implement Existing bool.

@@ -179,3 +179,12 @@ Instance tsl_param_instance_term : Translation
 
 Instance tsl_param_instance_type : TranslationType
   := {| tsl_typ := fun Σ E => tsl_ty fuel Σ E [] |}.
+
+(* la résolution de typeclasse est faite à ce moment là *)
+Declare ML Module "translation_plugin".
+
+Implement Existing bool. unshelve econstructor; intros; exact bool.
+Defined.
+Implement po : bool.
+exists true. exact false.
+Defined.

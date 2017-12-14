@@ -1,57 +1,117 @@
-(* -*- coq-prog-args : ("-debug" "-type-in-type") -*-  *)
-
-Require Import Template.sigma Template.tsl_param.
-
-(* Test Quote Type. *)
-(* Set Printing Universes. *)
-(* Make Definition t := (Ast.tSort (Ast.sType BinNums.xH)). *)
-(* Print t. *)
-(* Print Universes. *)
-
-Let T := Type.
-Check (T : T).
+Require Import Template.Template Template.Ast Template.sigma.
+Require Import Template.Induction Template.LiftSubst Template.Typing Template.Checker.
+Require Import Arith.Compare_dec.
+Require Import  Template.translation_utils.
+Import String Lists.List.ListNotations MonadNotation.
+Open Scope list_scope. Open Scope string_scope.
 
 
-Open Scope sigma_scope.
+Reserved Notation "'tsl_ty'".
 
-Implement t' : Set.
-cbn. exists nat. exact (fun _ => bool).
-Defined.
 
-Definition t := Set.
-Translate t.
-Fail Implement Existing t.
-Print Visibility.
+Fixpoint tsl_rec1 (n : nat) (t : term) {struct t} : term :=
+  match t with
+  | tRel k => if ge_dec k n then proj1 t else t
+  (* | tMeta : nat -> term *)
+  (* | tEvar : nat -> list term -> term *)
+  | tCast t c a => tCast (tsl_rec1 n t) c (tsl_rec1 n a)
+  | tProd x A B => tProd x (tsl_rec1 n A) (tsl_rec1 (n+1) B)
+  | tLambda x A t => tLambda x (tsl_rec1 n A) (tsl_rec1 (n+1) t)
+  | tLetIn x a t u => tLetIn x (tsl_rec1 n a) (tsl_rec1 n t) (tsl_rec1 (n+1) u)
+  | tApp t lu => tApp (tsl_rec1 n t) (List.map (tsl_rec1 n) lu)
+  (* | tCase : inductive * nat -> term -> term -> list (nat * term) -> term *)
+  | tProj p t => tProj p (tsl_rec1 n t)
+  (* | tFix : mfixpoint term -> nat -> term *)
+  (* | tCoFix : mfixpoint term -> nat -> term *)
+  | _ => t
+  end.
+    
 
-Implement y : Type.
-refine (@mk_sig Type (fun A : Type => A -> Type) Type _).
-auto.
-Defined.
+Fixpoint tsl_rec2 (fuel : nat) (Σ : global_context) (E : tsl_context) (Γ : context) (t : term) {struct fuel}
+  : tsl_result term :=
+  match fuel with
+  | O => raise NotEnoughFuel
+  | S fuel =>
+  match t with
+  | tRel n => ret (proj2 (tRel n))
+  | tSort s => ret (tLambda (nNamed "A") (tSort s)
+                           (tProd nAnon (tRel 0) (tSort s)))
+  | tCast t c A => let t1 := tsl_rec1 0 t in
+                  t2 <- tsl_rec2 fuel Σ E Γ t ;;
+                  A2 <- tsl_rec2 fuel Σ E Γ A ;;
+                  ret (tCast t2 c (tApp A2 [t1]))
+  | tProd n A B => let ΠAB' := tsl_rec1 0 (tProd n A B) in
+                  let B1 := tsl_rec1 0 B in
+                  A' <- tsl_ty fuel Σ E Γ A ;;
+                  B2 <- tsl_rec2 fuel Σ E (Γ ,, vass n A) B ;;
+                  ret (tLambda (nNamed "f") ΠAB'
+                               (tProd n (lift 1 0 A')
+                                      (tApp (lift 1 1 B2)
+                                            [tApp (tRel 1) [proj1 (tRel 0)]])))
+  | tLambda n A t => A' <- tsl_ty fuel Σ E Γ A ;;
+                    t' <- tsl_rec2 fuel Σ E (Γ ,, vass n A) t ;;
+                    ret (tLambda n A' t')
+  | tLetIn n t A u => t' <- tsl_term fuel Σ E Γ t ;;
+                     A' <- tsl_ty fuel Σ E Γ A ;;
+                     u' <- tsl_rec2 fuel Σ E (Γ ,, vdef n t A) u ;;
+                     ret (tLetIn n t' A' u')
+  | tApp t u => t' <- tsl_rec2 fuel Σ E Γ t ;;
+               u' <- monad_map (tsl_term fuel Σ E Γ) u ;;
+               ret (tApp t' u')
+  | tConst _ as t
+  | tInd _ as t
+  | tConstruct _ _ as t => t' <- tsl_term fuel Σ E Γ t ;;
+                          ret (proj2 t')
+  | _ => raise TranslationNotHandeled
+  end
+  end
+with tsl_term  (fuel : nat) (Σ : global_context) (E : tsl_context) (Γ : context) (t : term) {struct fuel}
+  : tsl_result term :=
+  match fuel with
+  | O => raise NotEnoughFuel
+  | S fuel =>
+  match t with
+  | tRel n => ret (tRel n)
+  | tCast t c A => t' <- tsl_term fuel Σ E Γ t ;;
+                  A' <- tsl_ty fuel Σ E Γ A ;;
+                  ret (tCast t' c A')
+  | tConst s => match lookup_tsl_ctx E (ConstRef s) with
+               | Some t => ret t
+               | None => raise (TranslationNotFound s)
+               end
+  | tInd i =>
+    match lookup_tsl_ctx E (IndRef i) with
+    | Some t => ret t
+    | None => raise (TranslationNotFound (string_of_gref (IndRef i)))
+    end
+  | tConstruct i n =>
+    match lookup_tsl_ctx E (ConstructRef i n) with
+    | Some decl => raise TranslationNotHandeled
+    | None => raise (TranslationNotFound (string_of_gref (ConstructRef i n)))
+    end
+  | t => match infer Σ Γ t with
+        | Checked typ => let t1 := tsl_rec1 0 t in
+                        t2 <- tsl_rec2 fuel Σ E Γ t ;;
+                        let typ1 := tsl_rec1 0 typ in
+                        typ2 <- tsl_rec2 fuel Σ E Γ typ ;;
+                        ret (pair typ1 typ2 t1 t2)
+        | TypeError t => raise (TypingError t)
+        end
+  end
+  end
+where "'tsl_ty'" := (fun fuel Σ E Γ t =>
+                        let t1 := tsl_rec1 0 t in
+                        t2 <- tsl_rec2 fuel Σ E Γ t ;;
+                        ret (pack t1 t2)).
 
-Fail Translate unit.
-Implement Existing unit.
-exact (mk_sig unit (fun _ => unit)).
-Defined.
-Print unitᵗ.
-Definition tlkhj := unitᵗ.
 
-Implement Existing tt.
-unshelve econstructor. exact tt. exact tt.
-Defined.
+Instance tsl_param_instance_term : Translation
+  := {| tsl_tm := fun Σ E => tsl_term fuel Σ E [] |}.
 
-Fail Translate tt.
+Instance tsl_param_instance_type : TranslationType
+  := {| tsl_typ := fun Σ E => tsl_ty fuel Σ E [] |}.
 
-Implement ttt : unit.
-cbn.
-econstructor.
-exact tt. exact tt.
-Defined.
-Print tttᵗ.
-
-Axiom tr : unit.
-Fail Translate tr.
-Implement Existing tr.
-Admitted.
+Declare ML Module "translation_plugin".
 
 
 Notation "'TYPE'" := (exists A, A -> Type).

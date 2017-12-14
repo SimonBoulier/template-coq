@@ -24,7 +24,7 @@ let translate_name id =
 
 (** Record of translation between globals *)
 
-let pkg_tsl = ["Template";"tsl_param"]
+(* let pkg_tsl = ["Template";"tsl_param"] *)
 let pkg_ast = ["Template";"Ast"]
 let pkg_tsl_utils = ["Template";"translation_utils"]
 let pkg_datatypes = ["Coq";"Init";"Datatypes"]
@@ -83,7 +83,7 @@ let quote_constant_decl env cst : Term.constr (* constant_decl *) =
 let quote_mind_decl2 env mind : Term.constr (* minductive_decl *) =
   let t = quote_mind_decl env mind in
   debug 21;
-  msg_debug (Printer.pr_constr t);
+  (* msg_debug (Printer.pr_constr t); *)
   let (h,args) = Term.destApp t in
   if Term.eq_constr h (rsa "PType") then
     match args with
@@ -123,14 +123,14 @@ let wrap_tsl_function f env sigma typ =
   let typ = Reify.TermReify.quote_term env typ in
   (* debug 10; *)
   let tc = Term.mkApp (f, [|!global_ctx; !tsl_ctx; typ|]) in
-  debug 11; msg_debug (Printer.pr_constr tc);
+  debug 11;
   let t = Reductionops.nf_all env sigma tc in
   let t = from_tsl_result t in
   (* msg_debug (Printer.pr_constr t); *)
   let sigmaref = ref sigma in
   let t = Reify.Denote.denote_term sigmaref t in
   (* debug 13; *)
-  msg_debug (str "tsl type/tm: " ++ Printer.pr_constr t);
+  (* msg_debug (str "tsl type/tm: " ++ Printer.pr_constr t); *)
   (!sigmaref, t)
 
 (* let tsl = resolve_symbol pkg_tsl "tsl" *)
@@ -140,6 +140,7 @@ let translate =
   let env = Global.env () in
   debug 7;
   let (_, tsl) = Typeclasses.resolve_one_typeclass env (Evd.from_env env) (rsu "Translation") in (* unsafe *)
+  debug 8;
   (* let p = rsu "tsl_tm" in *)
   (* msg_debug (Printer.pr_constr p);   *)
   (* let tsl = mkProj (p,tsl) in *)
@@ -160,8 +161,8 @@ let translate_implement op (id : Names.Id.t) id' =
     | ImplementExisting _ -> "Implement Existing "
     | Implement _ -> "Implement " in
   Feedback.msg_debug(str s ++ Ppconstr.pr_id id);
-  Feedback.msg_debug (str "global env:" ++ Printer.pr_constr !global_ctx);
-  Feedback.msg_debug (str "tsl env: " ++ Printer.pr_constr !tsl_ctx);
+  (* Feedback.msg_debug (str "global env:" ++ Printer.pr_constr !global_ctx); *)
+  (* Feedback.msg_debug (str "tsl env: " ++ Printer.pr_constr !tsl_ctx); *)
   let id' = match id' with
     | Some id -> id
     | None -> translate_name id
@@ -231,70 +232,3 @@ let translate_implement op (id : Names.Id.t) id' =
 let translate (gr:Libnames.reference) = let gr = Nametab.global gr in translate_implement (Translate gr) (Nametab.basename_of_global gr)
 let implement_existing (gr:Libnames.reference) = let gr = Nametab.global gr in translate_implement (ImplementExisting gr) (Nametab.basename_of_global gr)
 let implement (id:Names.Id.t) typ = translate_implement (Implement typ) id
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-  (* let gr = Nametab.global gr in *)
-  (* Feedback.msg_debug (str "full_path:" ++ Libnames.pr_path (Nametab.path_of_global gr)); *)
-(* (Nametab.basename_of_global gr) *)
-  (* Feedback.msg_debug (str "full_path:" ++ Libnames.pr_path (Lib.make_path id')); *)
-
-
-(* let implement id typ idopt = *)
-(*   Feedback.msg_debug(str"Implement " ++ Names.Id.print id); *)
-(*   Feedback.msg_debug (str ("global env: " ^ (string_of_global_ctx !global_ctx))); *)
-(*   Feedback.msg_debug (str ("tsl env: " ^ (string_of_tsl_ctx !tsl_ctx))); *)
-(*   let id_ = match idopt with *)
-(*     | Some id' -> id' *)
-(*     | None -> translate_name id *)
-(*   in *)
-(*   (\* let evdref = ref (Evd.from_env env) in *\) *)
-(*   (\* let typ = Constrintern.interp_type_evars env evdref typ in *\) *)
-(*   (\* let sigma = !evdref in *\) *)
-(*   Feedback.msg_debug (str "typ:" ++ Printer.pr_constr_env env sigma typ); *)
-(*   Feedback.msg_debug (str "evarmap:" ++ Evd.pr_evar_map ~with_univs:true None sigma); *)
-(*   let typ_, sigma = translate_type env !global_ctx !tsl_ctx sigma typ in *)
-(*   Feedback.msg_debug (str "typ':" ++ Printer.pr_constr_env env sigma typ_); *)
-(*   Feedback.msg_debug (str "evarmap:" ++ Evd.pr_evar_map None sigma); *)
-(*   (\* let (sigma, _) = Typing.type_of env sigma typ_ in *\) *)
-(*   (\* Feedback.msg_debug (str"pp"); *\) *)
-(*   (\* Feedback.msg_debug (Evd.pr_evar_map ~with_univs:true None sigma); *\) *)
-(*   let hook _ dst = *)
-(*     (\** Declare the original term as an axiom *\) *)
-(*     let param = (None, false, (typ, UState.context (Evd.evar_universe_context sigma)), None) in *)
-(*     let cb = Entries.ParameterEntry param in *)
-(*     let cst = Declare.declare_constant id (cb, IsDefinition Definition) in *)
-(*     (\** Attach the axiom to the implementation *\) *)
-(*     (\* Feedback.msg_debug (str "full_path:" ++ Libnames.pr_path (Lib.make_path id)); *\) *)
-(*     (\* Feedback.msg_debug (str "full_path:" ++ Libnames.pr_path (Lib.make_path id_)); *\) *)
-(*     let quoted_ident  = chars_of_string (Libnames.string_of_path (Lib.make_path id)) in *)
-(*     let quoted_ident' = chars_of_string (Libnames.string_of_path (Lib.make_path id_)) in *)
-(*     tsl_ctx := (quoted_ident, quoted_ident' ) :: !tsl_ctx; *)
-(*   in *)
-(*   let hook ctx = Lemmas.mk_hook hook in *)
-(*   (\* let sigma, _ = Typing.type_of env sigma typ_ in *\) *)
-(*   let kind = Global, Flags.use_polymorphic_flag (), DefinitionBody Definition in *)
-(*   Lemmas.start_proof_univs id_ kind sigma typ_ hook *)
-
-
-(* (\** Error handling *\) *)
-
-(* let _ = register_handler *)
-(* 	begin function *)
-(* 	(\* | MissingGlobal gr -> *\) *)
-(* 	(\*    let ref = Nametab.shortest_qualid_of_global Id.Set.empty gr in *\) *)
-(* 	(\*    str "No translation for global " ++ Libnames.pr_qualid ref ++ str "." *\) *)
-(* 	| _ -> raise Unhandled *)
-(* end *)
