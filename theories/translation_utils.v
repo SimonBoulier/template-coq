@@ -4,8 +4,8 @@ Import ListNotations String.
 Open Scope string_scope.
 
 Inductive global_reference :=
-    (* VarRef of Names.variable *)
-  | ConstRef : ident -> global_reference
+(* VarRef of Names.variable *)
+  | ConstRef : string (* kername *) -> global_reference
   | IndRef : inductive -> global_reference
   | ConstructRef : inductive -> nat -> global_reference.
 
@@ -29,13 +29,22 @@ Defined.
 
 Definition tsl_context := list (global_reference * term).
 
-Fixpoint lookup_tsl_ctx (E : tsl_context) (id : global_reference)
+Definition empty_global_ctx : global_context := [].
+Definition empty_tsl_ctx : tsl_context := [].
+
+Definition add_global_ctx : global_decl -> global_context -> global_context
+  := cons.
+Definition add_tsl_ctx : global_reference -> term -> tsl_context -> tsl_context
+  := fun kn t => cons (kn, t).
+
+
+Fixpoint lookup_tsl_ctx (E : tsl_context) (gr : global_reference)
   : option term :=
   match E with
   | nil => None
   | hd :: tl =>
-    if gref_eq_dec id (fst hd) then Some (snd hd)
-    else lookup_tsl_ctx tl id
+    if gref_eq_dec gr (fst hd) then Some (snd hd)
+    else lookup_tsl_ctx tl gr
   end.
 
 

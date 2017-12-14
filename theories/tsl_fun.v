@@ -53,7 +53,6 @@ Definition tsl := fun Σ E => tsl_rec fuel Σ E [].
 Definition tsl_type := tsl.
 
 
-
 (* Fixpoint tsl_rec (fuel : nat) (Σ : global_context) (E : tsl_context) (Γ : context) (t : term) (cst : option ident) {struct fuel} *)
 (*   : tsl_result term := *)
 (*   match fuel with *)

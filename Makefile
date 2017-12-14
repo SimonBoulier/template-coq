@@ -38,7 +38,7 @@ templatecoqchecker: coq Makefile.coqchecker
 	sh movefiles.sh
 	$(MAKE) -f Makefile.coqchecker
 
-translation: coq Makefile.translation templatecoq templatecoqchecker
-	$(COQBIN)coqc -type-in-type -I src -R theories Template theories/extract_trad.v
-	sh movefiles.sh
+translation: coq Makefile.translation
+	# $(COQBIN)coqc -type-in-type -I src -R theories Template theories/extract_trad.v
+	# sh movefiles.sh
 	$(MAKE) -f Makefile.translation

@@ -66,3 +66,20 @@ module Reify(Q : Quoter) : sig
 end
   
 val kn_of_canonical_string : string -> Names.kernel_name
+
+module TemplateCoqQuoter : sig
+  val resolve_symbol : string list -> string -> Term.constr
+  val int_to_nat : int -> Term.constr
+  val quote_string : string -> Term.constr
+  val quote_kn : Names.kernel_name -> Term.constr
+  val quote_inductive2 : Names.inductive -> Term.constr
+end
+                                         
+module TermReify : sig
+  val quote_term : Environ.env -> Term.constr -> Term.constr
+end
+
+module Denote : sig
+  val from_coq_pair : Term.constr -> Term.constr * Term.constr
+  val denote_term : Evd.evar_map ref -> Term.constr -> Term.constr
+end

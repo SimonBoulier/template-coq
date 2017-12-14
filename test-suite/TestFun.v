@@ -6,6 +6,8 @@ Open Scope sigma_scope.
 Let T := Type.
 Check (T : T).
 
+Require Import Template.tsl_fun.
+Locate tsl.
 (* Translate pair. *)
 (* (* Translate fst'. *) *)
 (* (* Translate snd'. *) *)
@@ -22,6 +24,7 @@ Axiom tr : nat.
 
 Fail Translate tr.
 Translate g.
+Print gᵗ.
 Translate f.
 Print fᵗ.
 
@@ -101,6 +104,15 @@ Proof.
   specialize' H (fun x => eq_refl; true).
   apply (f_equal (@π2 _ (fun _ => bool))) in H; cbn in H.
   discriminate H.
+Defined.
+
+Implement Existing bool.
+exact (bool*bool)%type.
+Defined.
+
+(* todo: fix the translation of inductives *)
+Implement Existing true.
+exact true.
 Defined.
 
 (* (* (* A more constructive version on inhabited types. *) *) *)

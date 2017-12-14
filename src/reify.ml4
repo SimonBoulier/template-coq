@@ -4,6 +4,7 @@
 let contrib_name = "template-coq"
 
 let cast_prop = ref (false)
+                    
 let _ = Goptions.declare_bool_option {
   Goptions.optsync = true; Goptions.optdepr = false;
   Goptions.optname = "Casting of propositions in template-coq";
@@ -25,6 +26,7 @@ let not_supported trm =
   Feedback.msg_error (str "Not Supported:" ++ spc () ++ Printer.pr_constr trm) ;
   raise (NotSupported trm)
 let bad_term trm =
+  Feedback.msg_error (str "Bad term:" ++ spc () ++ Printer.pr_constr trm) ;
   raise (NotSupported trm)
 (* flags *)
   
@@ -324,7 +326,7 @@ struct
     | Sorts.InSet -> sfSet
     | Sorts.InType -> sfType
 
-  let quote_inductive env (t : Names.inductive) =
+  let quote_inductive2 (t : Names.inductive) =
     let (m,i) = t in
     Term.mkApp (tmkInd, [| quote_string (Names.string_of_kn (Names.canonical_mind m))
 			 ; int_to_nat i |])
@@ -1063,6 +1065,7 @@ open Proofview.Notations
 open Pp
 
 module TermReify = Reify(TemplateCoqQuoter)   
+
 
 TACTIC EXTEND get_goal
     | [ "quote_term" constr(c) tactic(tac) ] ->

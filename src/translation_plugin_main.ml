@@ -9,9 +9,9 @@ open Libobject
 open Globnames
 open Proofview.Notations
 open Entries
-open Unquote
-open Tsl_param
-
+(* open Unquote *)
+open Reify.TemplateCoqQuoter
+open Reify.TermReify
 (** Utilities *)
 
 let translate_name id =
@@ -20,78 +20,80 @@ let translate_name id =
 
 (** Record of translation between globals *)
 
-let global_ctx : Typing0.global_context ref = ref []
-let tsl_ctx : Translation_utils.tsl_context ref = ref []
+let pkg_tsl = ["Template";"tsl_fun"]
+let pkg_ast = ["Template";"Ast"]
+let pkg_tsl_utils = ["Template";"translation_utils"]
 
-let add_global_ctx x =
-  global_ctx := x :: !global_ctx
+(* let tsl_path = *)
+  (* DirPath.make (List.map Id.of_string ["tsl_fun"; "Template"]) *)
+(* let make_kn name = *)
+  (* KerName.make2 (MPfile tsl_path) (Label.make name) *)
+(* let tsl = Constant.make1 (make_kn "tsl") *)
 
-let add_tsl_ctx x =
-  tsl_ctx := x :: !tsl_ctx
+let rsu = resolve_symbol pkg_tsl_utils
+let rsa = resolve_symbol pkg_ast
+                        
+let tsl = resolve_symbol pkg_tsl "tsl"
+let tsl_type = resolve_symbol pkg_tsl "tsl_type"
+                      
+let global_ctx : Term.constr ref = ref (resolve_symbol pkg_tsl_utils "empty_global_ctx")
+let tsl_ctx : Term.constr ref = ref (resolve_symbol pkg_tsl_utils "empty_tsl_ctx")
 
-let string_of_global_decl = function
-  | Ast0.ConstantDecl (i, _) -> string_of_chars i
-  | Ast0.InductiveDecl (i, _) -> string_of_chars i
+let quote_decl = function
+  | VarRef _ -> failwith "var"
+  | ConstRef cst -> Term.mkApp (rsu "ConstRef", [|quote_kn (Names.Constant.canonical cst)|])
+  | IndRef ind -> Term.mkApp (rsu "IndRef", [|quote_inductive2 ind |])
+  | ConstructRef (ind, n) -> Term.mkApp (rsu "ConstructRef", [|quote_inductive2 ind; int_to_nat n |])
 
-let string_of_global_ctx g =
-  let s = ref "[" in
-  List.iter (fun x -> s := !s ^ (string_of_global_decl x) ^ "; ") g;
-  !s ^ "]"
+let add_global_ctx gr  =
+  global_ctx := Term.mkApp (rsu "add_global_ctx", [|quote_decl gr|])
 
-let string_of_tsl_ctx (g:Translation_utils.tsl_context) =
-  let s = ref "[" in
-  List.iter (fun (x, y) -> s := !s ^ "(" ^ (string_of_chars (Translation_utils.string_of_gref x)) ^ "," ^ (Unquote.string_of_term y) ^ "); ") g;
-  !s ^ "]"
+let quote_mind_decl env mind : Term.constr = d
 
-let string_of_array pr a =
-  let s = ref "[|" in
-  Array.iter (fun x -> s := !s ^ (pr x) ^ "; ") a;
-  !s ^ "|]"
+let quote_constant_decl env cst : Term.constr (* constant_decl *) =
+  let decl = Environ.lookup_constant cst env in
+  let id = quote_kn (Names.Constant.canonical cst) in
+  let ty = quote_term env decl.Declarations.const_type in
+  let optbody = m in
+  Term.mkApp (rsa "Build_constant_decl", [|id; ty; optbody|])
 
-let string_of_type_error s =
-  let open Checker in
-  match s with
-  | UnboundRel _ -> "UnboundRel"
-  | UnboundVar _ -> "UnboundVar"
-  | UnboundMeta _ -> "UnboundMeta"
-  | UnboundEvar _ -> "UnboundEvar"
-  | UndeclaredConstant c -> "UndeclaredConstant " ^ string_of_chars c
-  | UndeclaredInductive _ -> "UndeclaredInductive"
-  | UndeclaredConstructor _ -> "UndeclaredConstructor"
-  | NotConvertible _ -> "NotConvertible"
-  | NotASort _ -> "NotASort"
-  | NotAProduct _ -> "NotAProduct"
-  | NotAnInductive _ -> "NotAnInductive"
-  | IllFormedFix _ -> "IllFormedFix"
-  | NotEnoughFuel _ -> "NotEnoughFuel"
-                       
-let string_of_error = function
-  | Translation_utils.NotEnoughFuel -> "Not enough fuel"
-  | Translation_utils.TranslationNotFound t -> "Translation of " ^ string_of_chars t ^ " not found"
-  | Translation_utils.TranslationNotHandeled -> "Translation not handeled"
-  | Translation_utils.TypingError t -> "Typing error: " ^ string_of_type_error t
+let quote_global_reference_decl env (gr:global_reference) =
+  match gr with
+  | VarRef _ -> failwith "var"
+  | ConstRef cst -> Some (Term.mkApp (rsa "ConstantDecl", [|quote_kn (Names.Constant.canonical cst); quote_constant_decl env cst|]))
+  | IndRef (mind,0) -> Some (Term.mkApp (rsa "InductiveDecl", [|quote_kn (Names.MutInd.canonical mind); quote_mind_decl env mind|]))
+  | IndRef _ -> None
+  | ConstructRef _ -> None
+                      
+let add_tsl_ctx env gr tm =
+  Option.iter (fun t -> tsl_ctx := Term.mkApp (rsu "add_tsl_ctx", [|t; quote_term env tm; !tsl_ctx|]))
+              (quote_global_reference_decl env gr)
 
-let wrap_extracted_function f =
-  fun env global_ctx tsl_ctx sigma c ->
-  let c = Template_coq.quote_term env c in
-  let c = f global_ctx tsl_ctx c in
-  let c = match c with
-    | Translation_utils.Success x -> x
-    | Translation_utils.Error e -> error ("Translation raised an error: " ^ string_of_error e) in
-  unquote sigma c
-
-let translate = wrap_extracted_function tsl
-let translate_type = wrap_extracted_function tsl_type
+let from_tsl_result trm =
+  (* let (h,args) = app_full trm [] in *)
+  let (h,args) = Term.destApp trm in
+  if Term.eq_constr h (rsu "Success") then
+    match args with
+    | [| _ ; x |] -> x
+    | _ -> failwith "bad term"
+  else if Term.eq_constr h (rsu "Error") then
+    failwith "tsl_error"
+  else
+    failwith "strange"
 
 
+let wrap_tsl_function f env sigma typ =
+  let typ = Reify.TermReify.quote_term env typ in
+  let tc = Term.mkApp (f, [|!global_ctx; !tsl_ctx; typ|]) in
+  let t = Reductionops.nf_all env sigma tc in
+  let t = from_tsl_result t in
+  (* tsl_ctx := c; todo *)
+  let sigmaref = ref sigma in
+  let t = Reify.Denote.denote_term sigmaref t in
+  (!sigmaref, t)
 
-let quote_gr : global_reference -> Translation_utils.global_reference = function
-  | VarRef _ -> failwith "Quoting of variables not handeled"
-  | ConstRef c -> Translation_utils.ConstRef (Template_coq.quote_string (Names.Constant.to_string c))
-  | IndRef (i, n) -> Translation_utils.IndRef (Ast0.Coq_mkInd (Template_coq.quote_string (Names.string_of_kn (Names.canonical_mind i)), Template_coq.quote_int n))
-  | ConstructRef ((i,n),k) -> Translation_utils.ConstructRef ((Ast0.Coq_mkInd (Template_coq.quote_string (Names.string_of_kn (Names.canonical_mind i)), Template_coq.quote_int n)), Template_coq.quote_int k)
-
-
+let translate = wrap_tsl_function tsl
+let translate_type = wrap_tsl_function tsl_type
 
 type translation_operation = Translate of global_reference | ImplementExisting of global_reference | Implement of Constrexpr.constr_expr
 
@@ -101,33 +103,34 @@ let translate_implement op (id : Names.Id.t) id' =
     | ImplementExisting _ -> "Implement Existing "
     | Implement _ -> "Implement " in
   Feedback.msg_debug(str s ++ Ppconstr.pr_id id);
-  Feedback.msg_debug (str ("global env: " ^ (string_of_global_ctx !global_ctx)));
-  Feedback.msg_debug (str ("tsl env: " ^ (string_of_tsl_ctx !tsl_ctx)));
+  Feedback.msg_debug (str "global env:" ++ Printer.pr_constr !global_ctx);
+  Feedback.msg_debug (str "tsl env: " ++ Printer.pr_constr !tsl_ctx);
   let id' = match id' with
     | Some id -> id
     | None -> translate_name id
   in
-  let quoted_ref  = chars_of_string (Libnames.string_of_path (Lib.make_path id)) in
-  let quoted_ref' = chars_of_string (Libnames.string_of_path (Lib.make_path id')) in
   let env   = Global.env () in
   let sigma = Evd.from_env env in
-  let sigma, typ = match op with
-    | Translate gr | ImplementExisting gr -> sigma, Universes.unsafe_type_of_global gr
-    | Implement ce -> let typ, uctx = Constrintern.interp_type env (Evd.from_env env) ce in
-                      Evd.from_ctx uctx, typ in
-  let sigma, typ' = translate_type env !global_ctx !tsl_ctx sigma typ in
+  let sigma, typ =
+    match op with
+    | Translate gr | ImplementExisting gr ->
+       sigma, Universes.unsafe_type_of_global gr
+    | Implement ce ->
+       let typ, uctx = Constrintern.interp_type env (Evd.from_env env) ce in
+       Evd.from_ctx uctx, typ in
+  let sigma, typ' = translate_type env sigma typ in
   let kind = Global, Flags.use_polymorphic_flag (), DefinitionBody Definition in
-  let end_with hook decl =
+  let end_with hook tm' =
     let gr = hook () in
-    Option.iter add_global_ctx decl;
-    add_tsl_ctx (gr, Ast0.Coq_tConst quoted_ref');
+    add_global_ctx gr;
+    add_tsl_ctx env gr tm';
     Feedback.msg_info (Ppconstr.pr_id id ++ str" has been translated as " ++ Names.Id.print id' ++ str".") in
   match op with
   | Translate gr ->
      (match gr with
       | ConstRef cst ->
          (match Global.body_of_constant cst with
-          | Some body -> let (sigma, body) = translate env !global_ctx !tsl_ctx sigma body in
+          | Some body -> let (sigma, body) = translate env sigma body in
                          (* let evdref = ref sigma in *)
                          (* let body = Typing.e_solve_evars env evdref body in *)
                          (* let sigma = !evdref in *)
@@ -136,36 +139,33 @@ let translate_implement op (id : Names.Id.t) id' =
                          let ce = Declare.definition_entry ~types:typ' ~univs:uctx body in
                          let cd = Entries.DefinitionEntry ce in
                          let decl = (cd, IsProof Theorem) in
-                         let _ = Declare.declare_constant id' decl in
-                         let decl = Ast0.{ cst_name = quoted_ref; cst_type = Template_coq.quote_term env typ;
-                                           cst_body = Some (Template_coq.quote_term env body) (* TODO not unquote twice *) } in
-                         end_with (fun () -> quote_gr gr) (Some (Ast0.ConstantDecl (quoted_ref, decl)))
+                         let tm' = Declare.declare_constant id' decl in
+                         end_with (fun () -> gr) (Term.mkConst tm')
           | _ -> error "Please use 'Implement Existing' to translate an axioms.")
       | IndRef ind ->
          error "Please use 'Implement Existing' to translate inductive types."
       | ConstructRef c ->
          error "Please use 'Implement Existing' to translate constructors."
-      | VarRef _ -> error "Translation not handled.")
+      | VarRef _ -> error "Translation of variables not handled.")
   | ImplementExisting gr ->
-     let decl = match gr with
-       | ConstRef cst ->
-          (match Global.body_of_constant cst with
-           | Some body -> error "Please use 'Translate' to translate definitions."
-           | None -> let decl = Ast0.{ cst_name = quoted_ref; cst_type = Template_coq.quote_term env typ;
-                                       cst_body = None } in
-                     Some (Ast0.ConstantDecl (quoted_ref, decl)))
-       | IndRef (ind, _) -> Some (Template_coq.quote_mind_decl env ind)
-       | ConstructRef c -> None
-       | VarRef _ -> error "Translation of variables not handled." in
-     Lemmas.start_proof id' kind sigma typ' (Lemmas.mk_hook (fun _ _ -> end_with (fun () -> quote_gr gr) decl))
+     (match gr with
+      | ConstRef cst ->
+         (match Global.body_of_constant cst with
+          | Some _ -> error "Please use 'Translate' to translate definitions."
+          | None -> ())
+      | IndRef (ind, _) -> ()
+      | ConstructRef c -> ()
+      | VarRef _ -> error "Translation of variables not handled.");
+       Lemmas.start_proof id' kind sigma typ' (Lemmas.mk_hook (fun _ gr' -> end_with (fun () -> gr) (Term.mkConst (Globnames.destConstRef gr'))))
   | Implement _ ->
      let hook () =
        (** Declare the original term as an axiom *)
        let param = (None, false, (typ, UState.context (Evd.evar_universe_context sigma)), None) in
        let cb = Entries.ParameterEntry param in
        let cst = Declare.declare_constant id (cb, IsDefinition Definition) in
-       Translation_utils.ConstRef (Template_coq.quote_string (Names.Constant.to_string cst)) in
-     Lemmas.start_proof id' kind sigma typ' (Lemmas.mk_hook (fun _ _ -> end_with hook None))
+       ConstRef cst
+     in
+     Lemmas.start_proof id' kind sigma typ' (Lemmas.mk_hook (fun _ gr' -> end_with hook (Term.mkConst (Globnames.destConstRef gr'))))
 
 
 let translate (gr:Libnames.reference) = let gr = Nametab.global gr in translate_implement (Translate gr) (Nametab.basename_of_global gr)
