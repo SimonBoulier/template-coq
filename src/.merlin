@@ -1,0 +1,24 @@
+FLG -rectypes
+
+B /home/rascar/.opam/coq86/lib/coq/config
+B /home/rascar/.opam/coq86/lib/coq/lib
+B /home/rascar/.opam/coq86/lib/coq/intf
+B /home/rascar/.opam/coq86/lib/coq/kernel
+B /home/rascar/.opam/coq86/lib/coq/kernel/byterun
+B /home/rascar/.opam/coq86/lib/coq/library
+B /home/rascar/.opam/coq86/lib/coq/engine
+B /home/rascar/.opam/coq86/lib/coq/pretyping
+B /home/rascar/.opam/coq86/lib/coq/interp
+B /home/rascar/.opam/coq86/lib/coq/proofs
+B /home/rascar/.opam/coq86/lib/coq/tactics
+B /home/rascar/.opam/coq86/lib/coq/printing
+B /home/rascar/.opam/coq86/lib/coq/parsing
+B /home/rascar/.opam/coq86/lib/coq/toplevel
+B /home/rascar/.opam/coq86/lib/coq/vernac
+B /home/rascar/.opam/coq86/lib/coq/stm
+B /home/rascar/.opam/coq86/lib/coq/ltac
+B /home/rascar/.opam/coq86/lib/coq/plugins/funind
+
+B /home/rascar/.opam/coq86/lib/coq/tools
+B /home/rascar/.opam/coq86/lib/coq/tools/coqdoc
+B /home/rascar/.opam/coq86/lib/coq/dev
