@@ -1,3 +1,5 @@
+(* -*- coq-prog-args : ("-debug" "-type-in-type") -*-  *)
+
 Require Import Template.Template Template.Ast Template.sigma.
 Require Import Template.Induction Template.LiftSubst Template.Typing Template.Checker.
 Require Import Arith.Compare_dec.
@@ -112,6 +114,7 @@ Instance tsl_param_instance_type : TranslationType
   := {| tsl_typ := fun Σ E => tsl_ty fuel Σ E [] |}.
 
 Declare ML Module "translation_plugin".
+Open Scope sigma_scope.
 
 
 Notation "'TYPE'" := (exists A, A -> Type).
@@ -125,99 +128,37 @@ Translate Type_cst as Typeᶠ.
 
 Check Typeᶠ : El Typeᶠ.
 
+Inductive natR : nat -> Set :=
+| OR : natR O
+| SR : forall n, natR n -> natR (S n).
+
+Implement Existing nat. exists nat. exact natR. Defined.
+
+Implement Existing bool. exists bool. intro; exact unit. Defined.
+Implement to : nat -> bool. cbn -[natᵗ boolᵗ].
+Abort.
+
 Definition mkTYPE (A₀ : Type) (Aᴿ : A₀ -> Type) : El Typeᶠ :=
   @mk_sig Type (fun A₀ => A₀ -> Type) A₀ Aᴿ.
 
-Definition Prodᶠ (A : El Typeᶠ) (B : El A -> El Typeᶠ) : El Typeᶠ :=
-  mkTYPE
-    (forall x : El A, (B x).1)
-    (fun f₀ => forall x : El A, (B x).2 (f₀ x)).
+Inductive sigmaR (A : TYPE) (B : exists f : A.1 -> Type, forall x : El A, f x.1 -> Type)
+  : (exists y, B.1 y) -> Type :=
+| mk_sigR : forall (π1 : El A) (π2 : exists y, B.2 π1 y), sigmaR A B (π1.1; π2.1).
 
-Notation "A →ᶠ B" := (Prodᶠ A (fun _ => B)) (at level 99, right associativity, B at level 200).
-Notation "'Πᶠ'  x .. y , P" := (Prodᶠ _ (fun x => .. (Prodᶠ _ (fun y => P)) ..))
-  (at level 200, x binder, y binder, right associativity).
-
-Definition Lamᶠ {A : El Typeᶠ} {B : El A -> El Typeᶠ} (f : forall x : El A, El (B x)) : El (Prodᶠ A B).
-Proof.
-unshelve refine (_ ; _).
-+ refine (fun x => (f x).1).
-+ refine (fun x => (f x).2).
-Defined.
-
-Notation "'λᶠ'  x .. y , t" := (Lamᶠ (fun x => .. (Lamᶠ (fun y => t)) ..))
-  (at level 200, x binder, y binder, right associativity).
-
-Definition Appᶠ {A B} (f : El (Prodᶠ A B)) (x : El A) : El (B x).
-Proof.
-unshelve refine (_ ; _).
-+ refine (f.1 x).
-+ refine (f.2 x).
-Defined.
-
-Notation "t · u" := (Appᶠ t u) (at level 65, left associativity).
-
-
-Definition sigmaᵀ (A : El Typeᶠ) (P : El (A →ᶠ Typeᶠ)) : Type :=
-  sigma (El A) (fun x => El (P · x)).
-
-Definition existᵀ (A : El Typeᶠ) (P : El (A →ᶠ Typeᶠ))
-           (x : El A) (y : El (P · x)) : sigmaᵀ A P
-  := mk_sig x y.
-
-Inductive sigmaᴿ (A : El Typeᶠ) (P : El (A →ᶠ Typeᶠ)) : sigmaᵀ A P -> Type :=
-| existᴿ : forall (x : El A) (y : El (P · x)), sigmaᴿ A P (existᵀ A P x y).
-
-Definition sigmaᶠ : El (Πᶠ (A : El Typeᶠ) (P : El (A →ᶠ Typeᶠ)), Typeᶠ).
-Proof.
-refine (λᶠ A P, _).
-unshelve refine (mkTYPE _ (sigmaᴿ A P)).
-Defined.
-
-Definition existᶠ : El (Πᶠ (A : El Typeᶠ) (P : El (A →ᶠ Typeᶠ)) (x : El A) (y : El (P · x)),
-  sigmaᶠ · A · P).
-Proof.
-refine (λᶠ A P x y, _).
-refine (mk_sig (existᵀ A P x y) (existᴿ A P x y)).
-Defined.
-
-
-Implement Existing sigma.
-exact sigmaᶠ.
-Defined.
-
-Implement Existing mk_sig.
-exact existᶠ.
-Defined.
+Implement Existing sigma. exists sigma. exact sigmaR. Defined.
 
 
 Inductive eq2 (A : El Typeᶠ) (x : El A) :
   forall (y : El A), eq (π1 x) (π1 y) -> Prop :=
 | refl2 : eq2 A x x eq_refl.
 
-
-Definition eqᶠ : El (Πᶠ (A : El Typeᶠ), A →ᶠ A →ᶠ Typeᶠ).
-Proof.
-refine (λᶠ A x y, _).
-unshelve refine (mkTYPE _ _).
-+ refine (eq x.1 y.1).
-+ refine (eq2 A x y).
+Implement Existing eq. cbn.
+exists @eq. exact eq2.
 Defined.
 
-Implement Existing eq.
-unshelve econstructor.
-exact (fun A x y => π1 x = π1 y).
-exact eq2.
+Implement Existing mk_sig. cbn.
+exists @mk_sig. exact mk_sigR.
 Defined.
-
-
-Definition reflᶠ : El (Πᶠ (A : El Typeᶠ) (x : El A), eqᶠ · A · x · x).
-Proof.
-refine (λᶠ A x, _).
-unshelve refine (_; refl2 A x).
-Defined.
-
-
-
 
 Definition equiv (A B : Type) :=
   exists (f : A -> B) (g : B -> A), (forall x, g (f x) = x) × (forall y, f (g y) = y).
@@ -230,17 +171,20 @@ Defined.
 Definition not A := A -> False.
 Translate not.
 
+Implement t : forall X, X -> X. cbn.
+Abort.
+
 (* Definition hasTwoElements A *)
 (*   := exists x y, @eq A x y -> False. *)
 (* Translate hasTwoElements. *)
 
-Definition HasTwoElFstComponentᶠ : El (Typeᶠ →ᶠ Typeᶠ) :=
-  λᶠ (T : El Typeᶠ), mkTYPE (exists (x y : T.1), x = y -> False) (fun _ => unit).
-Definition s := sigma.
-Translate s.
+(* Definition HasTwoElFstComponentᶠ : El (Typeᶠ →ᶠ Typeᶠ) := *)
+(*   λᶠ (T : El Typeᶠ), mkTYPE (exists (x y : T.1), x = y -> False) (fun _ => unit). *)
+(* Definition s := sigma. *)
+(* Translate s. *)
 Implement notUnivalence : 
   exists A B : Type, (equiv A B) × exists P, P A × not (P B).
-Proof.
+Proof. unshelve eapply mk_sigᵗ.  cbn.
 simple refine (existᶠ · _ · _ · _ · _).
 exact (bool:Type; fun _=> unit:Type).
 simple refine (existᶠ · _ · _ · _ · _).
