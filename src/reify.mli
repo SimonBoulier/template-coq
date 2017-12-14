@@ -81,5 +81,6 @@ end
 
 module Denote : sig
   val from_coq_pair : Term.constr -> Term.constr * Term.constr
+  val unquote_map_option : (Term.constr -> 'a) -> Term.constr -> 'a option
   val denote_term : Evd.evar_map ref -> Term.constr -> Term.constr
 end

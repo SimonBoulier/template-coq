@@ -14,6 +14,8 @@ open Reify.TemplateCoqQuoter
 open Reify.TermReify
 (** Utilities *)
 
+open Feedback
+       
 let translate_name id =
   let id = Id.to_string id in
   Id.of_string (id ^ "ᵗ" )
@@ -23,6 +25,7 @@ let translate_name id =
 let pkg_tsl = ["Template";"tsl_fun"]
 let pkg_ast = ["Template";"Ast"]
 let pkg_tsl_utils = ["Template";"translation_utils"]
+let pkg_datatypes = ["Coq";"Init";"Datatypes"]
 
 (* let tsl_path = *)
   (* DirPath.make (List.map Id.of_string ["tsl_fun"; "Template"]) *)
@@ -32,6 +35,7 @@ let pkg_tsl_utils = ["Template";"translation_utils"]
 
 let rsu = resolve_symbol pkg_tsl_utils
 let rsa = resolve_symbol pkg_ast
+let rsdt = resolve_symbol pkg_datatypes
                         
 let tsl = resolve_symbol pkg_tsl "tsl"
 let tsl_type = resolve_symbol pkg_tsl "tsl_type"
@@ -39,35 +43,42 @@ let tsl_type = resolve_symbol pkg_tsl "tsl_type"
 let global_ctx : Term.constr ref = ref (resolve_symbol pkg_tsl_utils "empty_global_ctx")
 let tsl_ctx : Term.constr ref = ref (resolve_symbol pkg_tsl_utils "empty_tsl_ctx")
 
-let quote_decl = function
+let quote_gr = function
   | VarRef _ -> failwith "var"
   | ConstRef cst -> Term.mkApp (rsu "ConstRef", [|quote_kn (Names.Constant.canonical cst)|])
   | IndRef ind -> Term.mkApp (rsu "IndRef", [|quote_inductive2 ind |])
   | ConstructRef (ind, n) -> Term.mkApp (rsu "ConstructRef", [|quote_inductive2 ind; int_to_nat n |])
+                      
+let add_tsl_ctx env gr tm =
+  tsl_ctx := Term.mkApp (rsu "add_tsl_ctx", [|quote_gr gr; quote_term env tm; !tsl_ctx|])
 
-let add_global_ctx gr  =
-  global_ctx := Term.mkApp (rsu "add_global_ctx", [|quote_decl gr|])
-
-let quote_mind_decl env mind : Term.constr = d
+let quote_option env (t : Term.constr option) : Term.constr (* de type Option term *) =
+  match t with
+  | Some t -> Term.mkApp (rsdt "Some", [|rsa "term"; quote_term env t|])
+  | None -> rsdt "None"
+                        
+(* let quote_mind_decl env mind : Term.constr = d *)
 
 let quote_constant_decl env cst : Term.constr (* constant_decl *) =
   let decl = Environ.lookup_constant cst env in
   let id = quote_kn (Names.Constant.canonical cst) in
-  let ty = quote_term env decl.Declarations.const_type in
-  let optbody = m in
+  let ty = quote_term env (Typeops.type_of_constant_type env decl.Declarations.const_type) in
+  let optbody = Declareops.body_of_constant (Environ.opaque_tables env) decl in
+  let optbody = quote_option env optbody in
   Term.mkApp (rsa "Build_constant_decl", [|id; ty; optbody|])
 
-let quote_global_reference_decl env (gr:global_reference) =
+let quote_gr_decl env (gr:global_reference) =
   match gr with
   | VarRef _ -> failwith "var"
   | ConstRef cst -> Some (Term.mkApp (rsa "ConstantDecl", [|quote_kn (Names.Constant.canonical cst); quote_constant_decl env cst|]))
-  | IndRef (mind,0) -> Some (Term.mkApp (rsa "InductiveDecl", [|quote_kn (Names.MutInd.canonical mind); quote_mind_decl env mind|]))
-  | IndRef _ -> None
-  | ConstructRef _ -> None
-                      
-let add_tsl_ctx env gr tm =
-  Option.iter (fun t -> tsl_ctx := Term.mkApp (rsu "add_tsl_ctx", [|t; quote_term env tm; !tsl_ctx|]))
-              (quote_global_reference_decl env gr)
+  (* | IndRef (mind,0) -> Some (Term.mkApp (rsa "InductiveDecl", [|quote_kn (Names.MutInd.canonical mind); quote_mind_decl env mind|])) *)
+  (* | IndRef _ -> None *)
+  (* | ConstructRef _ -> None *)
+  | _ -> None
+           
+let add_global_ctx env gr  =
+  Option.iter (fun decl' -> global_ctx := Term.mkApp (rsu "add_global_ctx", [|decl'; !global_ctx|]))
+              (quote_gr_decl env gr)
 
 let from_tsl_result trm =
   (* let (h,args) = app_full trm [] in *)
@@ -87,9 +98,10 @@ let wrap_tsl_function f env sigma typ =
   let tc = Term.mkApp (f, [|!global_ctx; !tsl_ctx; typ|]) in
   let t = Reductionops.nf_all env sigma tc in
   let t = from_tsl_result t in
-  (* tsl_ctx := c; todo *)
+  msg_debug (Printer.pr_constr t);
   let sigmaref = ref sigma in
   let t = Reify.Denote.denote_term sigmaref t in
+  msg_debug (Printer.pr_constr t);
   (!sigmaref, t)
 
 let translate = wrap_tsl_function tsl
@@ -122,7 +134,8 @@ let translate_implement op (id : Names.Id.t) id' =
   let kind = Global, Flags.use_polymorphic_flag (), DefinitionBody Definition in
   let end_with hook tm' =
     let gr = hook () in
-    add_global_ctx gr;
+    let env = Global.env () in
+    add_global_ctx env gr;
     add_tsl_ctx env gr tm';
     Feedback.msg_info (Ppconstr.pr_id id ++ str" has been translated as " ++ Names.Id.print id' ++ str".") in
   match op with

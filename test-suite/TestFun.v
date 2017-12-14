@@ -28,6 +28,9 @@ Print gᵗ.
 Translate f.
 Print fᵗ.
 
+Definition t6 := fun x : f => x.
+Translate t6.
+
 Implement t2 : bool as totot.
 econstructor.
 Defined.
@@ -52,6 +55,7 @@ Defined.
 Definition t5 := forall X:Set, X.
 Translate t5.
 Print t5ᵗ.
+                   
 
 (* (* Axiom a : forall X, X. *) *)
 

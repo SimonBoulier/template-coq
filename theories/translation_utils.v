@@ -119,4 +119,4 @@ Quote Definition tBool := bool.
 Quote Definition tTrue := true.
 Definition timesBool (t : term) :=
   tApp tSigma [t; tLambda nAnon t tBool].
-Definition pairTrue typ t := pair typ tBool t tTrue.
+Definition pairTrue typ t := pair typ (tLambda nAnon typ tBool) t tTrue.
