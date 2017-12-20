@@ -10,8 +10,9 @@ open Globnames
 open Proofview.Notations
 open Entries
 (* open Unquote *)
-open Reify.TemplateCoqQuoter
-open Reify.TermReify
+open Reify
+open TemplateCoqQuoter
+open TermReify
 (** Utilities *)
 
 open Feedback
@@ -89,9 +90,9 @@ let quote_mind_decl2 env mind : Term.constr (* minductive_decl *) =
     match args with
     | [| _ ; npars ; bodies|] ->
        Term.mkApp (rsa "Build_minductive_decl", [|npars; bodies|])
-    | _ -> failwith "bad term (more applied?)"
+    | _ -> error "bad term (more applied?) in quote_mind_decl2"
   else
-    failwith "strange quote_mind_decl2"
+    error "strange quote_mind_decl2"
 
 let quote_gr_decl env (gr:global_reference) =
   match gr with
@@ -107,20 +108,27 @@ let add_global_ctx env gr  =
               (quote_gr_decl env gr)
 
 let from_tsl_result trm =
-  (* let (h,args) = app_full trm [] in *)
   let (h,args) = Term.destApp trm in
   if Term.eq_constr h (rsu "Success") then
     match args with
     | [| _ ; x |] -> x
-    | _ -> failwith "bad term"
+    | _ -> error "bad term 2 in from_tsl_result"
   else if Term.eq_constr h (rsu "Error") then
-    failwith "tsl_error"
+    match args with
+    | [| t |] -> let (h,args) = app_full t [] in
+                 ( match args with
+                   | [] when Term.eq_constr h (rsu "NotEnoughFuel") -> error "TslError: NotEnoughFuel"
+                   | [id] when Term.eq_constr h (rsu "TranslationNotFound") -> error ("TslError: TranslationNotFound " ^ (Denote.unquote_string id))
+                   | [] when Term.eq_constr h (rsu "TranslationNotHandeled") -> error "TslError: TranslationNotHandeled"
+                   | [t] when Term.eq_constr h (rsu "TypingError") -> error "TslError: TypingError" (* todo print t *)
+                   | _ -> error "bad term 3 in from_tsl_result" )
+    | _ -> error "bad term 4 in from_tsl_result"
   else
-    failwith "strange"
+    error "from_tsl_result is suposed to take a Constr.t of type tsl_result"
 
 
 let wrap_tsl_function f env sigma typ =
-  let typ = Reify.TermReify.quote_term env typ in
+  let typ = quote_term env typ in
   (* debug 10; *)
   let tc = Term.mkApp (f, [|!global_ctx; !tsl_ctx; typ|]) in
   debug 11;
@@ -128,7 +136,7 @@ let wrap_tsl_function f env sigma typ =
   let t = from_tsl_result t in
   (* msg_debug (Printer.pr_constr t); *)
   let sigmaref = ref sigma in
-  let t = Reify.Denote.denote_term sigmaref t in
+  let t = Denote.denote_term sigmaref t in
   (* debug 13; *)
   (* msg_debug (str "tsl type/tm: " ++ Printer.pr_constr t); *)
   (!sigmaref, t)

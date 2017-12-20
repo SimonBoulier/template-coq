@@ -1,3 +1,9 @@
+
+val kn_of_canonical_string : string -> Names.kernel_name
+val app_full : Term.constr -> Term.constr list -> Term.constr * Term.constr list
+val resolve_symbol : string list -> string -> Term.constr
+
+
 module type Quoter = sig
   type t
 
@@ -45,7 +51,7 @@ module type Quoter = sig
   val mkProj : quoted_proj -> t -> t
   val mkFix : (quoted_int array * quoted_int) * (quoted_name array * t array * t array) -> t
   val mkCoFix : quoted_int * (quoted_name array * t array * t array) -> t
-    
+
 
   val mkMutualInductive : quoted_kernel_name -> quoted_int (* params *) ->
                           (quoted_ident * t (* ind type *) * quoted_sort_family list *
@@ -56,7 +62,7 @@ module type Quoter = sig
   val mkAxiom : quoted_kernel_name -> t -> quoted_decl
 
   val mkExt : quoted_decl -> quoted_program -> quoted_program
-  val mkIn : t -> quoted_program 
+  val mkIn : t -> quoted_program
 end
 
 module Reify(Q : Quoter) : sig
@@ -64,24 +70,22 @@ module Reify(Q : Quoter) : sig
   val quote_term : Environ.env -> Constr.t -> Q.t
   val quote_term_rec : Environ.env -> Constr.t -> Q.quoted_program
 end
-  
-val kn_of_canonical_string : string -> Names.kernel_name
 
 module TemplateCoqQuoter : sig
-  val resolve_symbol : string list -> string -> Term.constr
   val to_coq_list : Term.constr (* the type *) -> Term.constr list -> Term.constr
   val int_to_nat : int -> Term.constr
   val quote_string : string -> Term.constr
   val quote_kn : Names.kernel_name -> Term.constr
   val quote_inductive2 : Names.inductive -> Term.constr
 end
-                                         
+
 module TermReify : sig
   val quote_term : Environ.env -> Term.constr -> Term.constr
   val quote_mind_decl : Environ.env -> Names.mutual_inductive -> Term.constr
 end
 
 module Denote : sig
+  val unquote_string : Term.constr -> string
   val from_coq_pair : Term.constr -> Term.constr * Term.constr
   val unquote_map_option : (Term.constr -> 'a) -> Term.constr -> 'a option
   val denote_term : Evd.evar_map ref -> Term.constr -> Term.constr

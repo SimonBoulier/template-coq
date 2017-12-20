@@ -174,10 +174,13 @@ Translate not.
 (*   := exists x y, @eq A x y -> False. *)
 (* Translate hasTwoElements. *)
 
-Definition HasTwoElFstComponentᶠ : El (Typeᶠ →ᶠ Typeᶠ) :=
-  λᶠ (T : El Typeᶠ), mkTYPE (exists (x y : T.1), x = y -> False) (fun _ => unit).
-Definition s := sigma.
-Translate s.
+Implement HasTwoElFstComponent : Type -> Type.
+exact(  λᶠ (T : El Typeᶠ), mkTYPE (exists (x y : T.1), x = y -> False) (fun _ => unit)).
+Defined.
+
+
+
+
 Implement notUnivalence : 
   exists A B : Type, (equiv A B) × exists P, P A × not (P B).
 Proof.
@@ -193,7 +196,7 @@ simple refine (existᶠ · _ · _ · _ · _).
   simple refine (existᶠ · _ · _ · _ · _);
     cbn; unshelve econstructor; reflexivity.
 - simple refine (existᶠ · _ · _ · _ · _).
-  exact HasTwoElFstComponentᶠ.
+  exact HasTwoElFstComponentᵗ.
   simple refine (existᶠ · _ · _ · _ · _).
   + cbn. refine (_; tt). exists true. exists false.
     discriminate 1.

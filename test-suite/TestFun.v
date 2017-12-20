@@ -113,7 +113,7 @@ Tactic Notation "specialize'" hyp(H) uconstr(t) := apply π1 in H; specialize (H
 (* (* This translation allow to implement the negation of funext. *) *)
 (* (* Test Quote  *) *)
 Implement notFunext :
-  ((forall (A B : Set) (f g : A -> B), (forall x:A, f x = f x) -> f = g) -> False).
+  ((forall (A B : Set) (f g : A -> B), (forall x:A, f x = g x) -> f = g) -> False).
 Proof.
   intro' H.
   specialize' H unit.

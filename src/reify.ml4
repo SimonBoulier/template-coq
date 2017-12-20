@@ -4,7 +4,7 @@
 let contrib_name = "template-coq"
 
 let cast_prop = ref (false)
-                    
+
 let _ = Goptions.declare_bool_option {
   Goptions.optsync = true; Goptions.optdepr = false;
   Goptions.optname = "Casting of propositions in template-coq";
@@ -21,7 +21,7 @@ let pp_constr fmt x = Pp.pp_with fmt (Printer.pr_constr x)
 open Pp (* this adds the ++ to the current scope *)
 
 exception NotSupported of Term.constr
-   
+
 let not_supported trm =
   Feedback.msg_error (str "Not Supported:" ++ spc () ++ Printer.pr_constr trm) ;
   raise (NotSupported trm)
@@ -29,10 +29,10 @@ let bad_term trm =
   Feedback.msg_error (str "Bad term:" ++ spc () ++ Printer.pr_constr trm) ;
   raise (NotSupported trm)
 (* flags *)
-  
+
 let opt_hnf_ctor_types = ref false
 let opt_debug = ref false
-              
+
 let with_debug f =
   opt_debug := true ;
   try
@@ -69,10 +69,29 @@ let hnf_type env ty =
   in
   hnf_type true ty
 
+let resolve_symbol (path : string list) (tm : string) : Term.constr =
+  Coqlib.gen_constant_in_modules contrib_name [path] tm
+
+let kn_of_canonical_string s =
+  let ss = List.rev (Str.split (Str.regexp (Str.quote ".")) s) in
+  match ss with
+    nm :: rst ->
+    let rec to_mp ls = Names.MPfile (Names.make_dirpath (List.map Names.id_of_string ls)) in
+    let mp = to_mp rst in
+    Names.make_kn mp Names.empty_dirpath (Names.mk_label nm)
+  | _ -> assert false
+
+
+let rec app_full trm acc =
+  match Term.kind_of_term trm with
+    Term.App (f, xs) -> app_full f (Array.to_list xs @ acc)
+  | _ -> (trm, acc)
+
+
 module Cmap = Names.KNmap
 module Cset = Names.KNset
 module Mindset = Names.Mindset
-   
+
 module type Quoter = sig
   type t
 
@@ -99,7 +118,7 @@ module type Quoter = sig
   val quote_kn : kernel_name -> quoted_kernel_name
   val quote_inductive : quoted_kernel_name * quoted_int -> quoted_inductive
   val quote_proj : quoted_inductive -> quoted_int -> quoted_int -> quoted_proj
-    
+
   val mkName : quoted_ident -> quoted_name
   val mkAnon : quoted_name
 
@@ -133,12 +152,12 @@ module type Quoter = sig
   val mkAxiom : quoted_kernel_name -> t -> quoted_decl
 
   val mkExt : quoted_decl -> quoted_program -> quoted_program
-  val mkIn : t -> quoted_program 
+  val mkIn : t -> quoted_program
 end
 
-(** The reifier to Coq values *)                   
+(** The reifier to Coq values *)
 module TemplateCoqQuoter =
-struct 
+struct
   type t = Term.constr
 
   type quoted_ident = Term.constr
@@ -155,9 +174,6 @@ struct
   type quoted_decl = Term.constr
 
   type quoted_program = Term.constr
-
-  let resolve_symbol (path : string list) (tm : string) : Term.constr =
-    Coqlib.gen_constant_in_modules contrib_name [path] tm
 
   let pkg_bignums = ["Coq";"Numbers";"BinNums"]
   let pkg_datatypes = ["Coq";"Init";"Datatypes"]
@@ -285,7 +301,7 @@ struct
         go (from - 1) term
     in
     go (len - 1) tEmptyString
-                      
+
   let quote_string s =
     try Hashtbl.find string_hash s
     with Not_found ->
@@ -344,7 +360,7 @@ struct
   let mk_proj_list d =
     to_coq_list (prod tident tTerm)
                 (List.map (fun (a, b) -> pair tident tTerm a b) d)
-    
+
   let rec pair_with_number st ls =
     match ls with
       [] -> []
@@ -396,7 +412,7 @@ struct
     let block = to_coq_list (Term.mkApp (tdef, [| tTerm |])) (List.rev defs) in
     Term.mkApp (tCoFix, [| block ; a |])
 
-  let mkConstruct (ind, i) = 
+  let mkConstruct (ind, i) =
     Term.mkApp (tConstructor, [| ind ; i |])
 
   let mkInd i = Term.mkApp (tInd, [| i |])
@@ -409,7 +425,7 @@ struct
 
   let quote_proj ind pars args =
     pair (prod tIndTy tnat) tnat (pair tIndTy tnat ind pars) args
-    
+
   let mkProj kn t =
     Term.mkApp (tProj, [| kn; t |])
 
@@ -421,7 +437,7 @@ struct
               let e = mk_proj_list e in
               Term.mkApp (tmkinductive_body, [| a; b; c; d; e |])) ls) in
     Term.mkApp (pType, [| kn; p; result |])
-    
+
   let mkConstant kn ty c =
     Term.mkApp (pConstr, [| kn; ty; c |])
 
@@ -431,13 +447,13 @@ struct
   let mkExt x acc = Term.mkApp (x, [| acc |])
   let mkIn t = Term.mkApp (pIn, [| t |])
 end
-                   
+
 module Reify(Q : Quoter) =
 struct
 
   let push_rel decl (in_prop, env) = (in_prop, Environ.push_rel decl env)
   let push_rel_context ctx (in_prop, env) = (in_prop, Environ.push_rel_context ctx env)
-                                          
+
   let quote_term_remember
       (add_constant : Names.kernel_name -> 'a -> 'a)
       (add_inductive : Names.inductive -> 'a -> 'a) =
@@ -697,25 +713,10 @@ struct
 end
 
 
-let kn_of_canonical_string s =
-  let ss = List.rev (Str.split (Str.regexp (Str.quote ".")) s) in
-  match ss with
-    nm :: rst ->
-    let rec to_mp ls = Names.MPfile (Names.make_dirpath (List.map Names.id_of_string ls)) in
-    let mp = to_mp rst in
-    Names.make_kn mp Names.empty_dirpath (Names.mk_label nm)
-  | _ -> assert false
-
-
 module Denote =
 struct
 
   open TemplateCoqQuoter
-  
-  let rec app_full trm acc =
-    match Term.kind_of_term trm with
-      Term.App (f, xs) -> app_full f (Array.to_list xs @ acc)
-    | _ -> (trm, acc)
 
   let rec nat_to_int trm =
     let (h,args) = app_full trm [] in
@@ -942,7 +943,7 @@ struct
   let denote_local_entry evdref trm =
     let (h,args) = app_full trm [] in
       match args with
-	    x :: [] -> 
+	    x :: [] ->
       if Term.eq_constr h tLocalDef then Entries.LocalDefEntry (denote_term evdref x)
       else (if  Term.eq_constr h tLocalAssum then Entries.LocalAssumEntry (denote_term evdref x) else bad_term trm)
       | _ -> bad_term trm
@@ -950,7 +951,7 @@ struct
   let denote_mind_entry_finite trm =
     let (h,args) = app_full trm [] in
       match args with
-	    [] -> 
+	    [] ->
       if Term.eq_constr h cFinite then Decl_kinds.Finite
       else if  Term.eq_constr h cCoFinite then Decl_kinds.CoFinite
       else if  Term.eq_constr h cBiFinite then Decl_kinds.BiFinite
@@ -960,11 +961,11 @@ struct
 
   let unquote_map_option f trm =
     let (h,args) = app_full trm [] in
-    if Term.eq_constr h cSome then 
+    if Term.eq_constr h cSome then
     match args with
 	  _ :: x :: _ -> Some (f x)
       | _ -> bad_term trm
-    else if Term.eq_constr h cNone then 
+    else if Term.eq_constr h cNone then
     match args with
 	  _ :: [] -> None
       | _ -> bad_term trm
@@ -978,7 +979,7 @@ struct
   let (evm,body) = reduce_all env (evm,body)  (Genredexpr.Cbv Redops.all_flags) in
   let (_,args) = app_full body [] in (* check that the first component is Build_mut_ind .. *)
   let evdref = ref evm in
-  let one_ind b1 : Entries.one_inductive_entry = 
+  let one_ind b1 : Entries.one_inductive_entry =
     let (_,args) = app_full b1 [] in (* check that the first component is Build_one_ind .. *)
     match args with
     | mt::ma::mtemp::mcn::mct::[] ->
@@ -988,21 +989,29 @@ struct
     mind_entry_template = from_bool mtemp;
     mind_entry_consnames = List.map unquote_ident (from_coq_list mcn);
     mind_entry_lc = List.map (denote_term evdref) (from_coq_list mct)
-    } 
+    }
     | _ -> raise (Failure "ill-typed one_inductive_entry")
-     in 
+     in
   let mut_ind mr mf mp mi mpol mpr : Entries.mutual_inductive_entry =
     {
     mind_entry_record = unquote_map_option (unquote_map_option unquote_ident) mr;
     mind_entry_finite = denote_mind_entry_finite mf; (* inductive *)
-    mind_entry_params = List.map (fun p -> let (l,r) = (from_coq_pair p) in (unquote_ident l, (denote_local_entry evdref r))) (from_coq_list mp);
+    mind_entry_params = List.map (fun p -> let (l,r) = (from_coq_pair p) in
+                                           let idt = (unquote_ident l, denote_local_entry evdref r) in
+                                           (* TODO TODO TODO *)
+                                           (* (match  idt with *)
+                                           (*  | (id, Entries.LocalAssumEntry t) -> Global.push_named_assum *)
+                                           (*                                         ((id, t, false), Evd.universe_context_set !evdref) *)
+                                           (*  | _ -> ()); *)
+                                           idt
+                                 ) (from_coq_list mp);
     mind_entry_inds = List.map one_ind (from_coq_list mi);
     mind_entry_polymorphic = from_bool mpol;
     mind_entry_universes = Univ.UContext.empty;
     mind_entry_private = unquote_map_option from_bool mpr (*mpr*)
-    } in 
+    } in
     match args with
-    mr::mf::mp::mi::mpol::mpr::[] -> 
+    mr::mf::mp::mi::mpol::mpr::[] ->
       ignore(Command.declare_mutual_inductive_with_eliminations (mut_ind mr mf mp mi mpol mpr) [] [])
     | _ -> raise (Failure "ill-typed mutual_inductive_entry")
 
@@ -1064,7 +1073,7 @@ open Constrarg
 open Proofview.Notations
 open Pp
 
-module TermReify = Reify(TemplateCoqQuoter)   
+module TermReify = Reify(TemplateCoqQuoter)
 
 
 TACTIC EXTEND get_goal
@@ -1127,12 +1136,12 @@ VERNAC COMMAND EXTEND Make_recursive CLASSIFIED AS SIDEFF
 	let (evm,env) = Lemmas.get_current_context () in
 	let def = Constrintern.interp_constr env evm def in
 	let trm = TermReify.quote_term_rec env (fst def) in
-	ignore(Declare.declare_definition 
+	ignore(Declare.declare_definition
 	  ~kind:Decl_kinds.Definition name
 	  (trm, (* No new universe constraints can be generated by typing the AST *)
            Univ.ContextSet.empty)) ]
 END;;
-        
+
 VERNAC COMMAND EXTEND Unquote_vernac CLASSIFIED AS SIDEFF
     | [ "Make" "Definition" ident(name) ":=" constr(def) ] ->
       [ check_inside_section () ;
