@@ -120,6 +120,13 @@ Open Scope list_scope.
 Open Scope sigma_scope.
 
 
+(* Definition t := Type -> Type. *)
+(* Translate t. *)
+
+Implement toto : Type -> Type.
+cbn. unshelve econstructor.
+Abort.
+
 Notation "'tΣ'" := (tInd (mkInd "Template.sigma.sigma" 0)).
 Notation "'tproj1'" := (tProj (mkInd "Template.sigma.sigma" 0, 2, 0)).
 Notation "'tImpl'" := (tProd nAnon).
@@ -253,6 +260,17 @@ Definition sigma_entry := Eval compute in
 
 (* Make Inductive eq_entry. *)
 (* Make Inductive sigma_entry. *)
+
+Require Vectors.VectorDef.
+Quote Recursively Definition vect_prog := Vectors.VectorDef.t.
+Definition vect_decl := Eval compute in
+      extract_mind_decl_from_program "Coq.Vectors.VectorDef.t" vect_prog.
+Definition vect_entry := Eval compute in
+      (mind_decl_to_entry (option_get todo_coq vect_decl)).
+(* Make Inductive vect_entry. *)
+(* Inductive t (A : Type) : nat -> Type := *)
+    (* nil : t A 0 | cons : A -> forall n : nat, t A n -> t A (S n) *)
+
 
 Inductive boolR : bool -> Set :=
 | trueR : boolR true
@@ -446,6 +464,22 @@ Definition mkApp t us :=
   | _ => tApp t us
   end.
 
+Definition get_local_entry (l : local_entry) : term :=
+  match l with
+  | LocalDef t => t
+  | LocalAssum t => t
+  end.
+
+Definition recompose_prod' (l : list (ident * local_entry)
+                           (* Xn at the head of the list *))
+           (b : term) : term.
+  apply List.rev in l.
+  eapply List.split in l. eapply recompose_prod.
+  exact (List.map nNamed (fst l)).
+  exact (List.map get_local_entry (snd l)).
+  exact b.
+Defined.
+
 Definition tsl_mind_entry  (Σ : global_context) (E : tsl_context)
            (id : ident) (mind : mutual_inductive_entry)
   : mutual_inductive_entry.
@@ -457,30 +491,43 @@ Definition tsl_mind_entry  (Σ : global_context) (E : tsl_context)
                                | Success _ t => t
                                | Error _ _ => todo_coq
                                end in _).
-  refine (let tsl2' := fun Σ t => match tsl_rec2 fuel Σ E [] t with
-                               | Success _ t => t
-                               | Error _ _ => todo_coq
-                               end in _).
-  refine ({| mind_entry_record := mind.(mind_entry_record);
-             mind_entry_finite := mind.(mind_entry_finite);
-             mind_entry_params := _;
-             mind_entry_inds := _;
-             mind_entry_polymorphic := mind.(mind_entry_polymorphic);
-             mind_entry_private := mind.(mind_entry_private);
-          |}).
+  (* refine (let tsl2' := fun t : term => t in _). *)
+  refine (let tsl2' := fun t : term => match tsl_rec2 fuel Σ E [] t with
+                                    | Success _ t => t
+                                    | Error _ _ => todo_coq
+                                    end in _).
+  refine {| mind_entry_record := mind.(mind_entry_record);
+            mind_entry_finite := mind.(mind_entry_finite);
+            mind_entry_params := _;
+            mind_entry_inds := _;
+            mind_entry_polymorphic := mind.(mind_entry_polymorphic);
+            mind_entry_private := mind.(mind_entry_private);
+         |}.
   refine (List.map (fun x => (fst x, local_entry_map tsl_ty' (snd x)))
                    mind.(mind_entry_params)).
+  simple refine (let L : list term := _ ++ _ in _).
+  refine (map_i (fun i _ => tRel i) mind.(mind_entry_params)).
+  pose (l := List.length mind.(mind_entry_params)).
+  pose (p := List.length mind.(mind_entry_inds)-1).
+  simple refine (map_i (fun i _ => let arity_i := _ in
+                                pair arity_i _ (tInd (mkInd id (p-i))) (tRel (l+i)))
+                       mind.(mind_entry_inds)). 
+  refine (recompose_prod'
+            mind.(mind_entry_params)
+                   (List.nth (p-i) mind.(mind_entry_inds) todo_coq).(mind_entry_arity)).
+  (* refine (mkApp (tsl2' arity_i) [tInd (mkInd id (p-i))]). *)
+  refine (tsl2' arity_i).
+
   refine (map_i _ mind.(mind_entry_inds)).
   intros i ind.
-  simple refine (let arity' := _ in
-          {| mind_entry_typename := tsl_ident (ind.(mind_entry_typename));
-             mind_entry_arity := arity';
-             mind_entry_template := ind.(mind_entry_template);
-             mind_entry_consnames := List.map tsl_ident ind.(mind_entry_consnames);
-             mind_entry_lc := _;
-          |}).
+  simple refine {| mind_entry_typename := tsl_ident (ind.(mind_entry_typename));
+                   mind_entry_arity := _;
+                   mind_entry_template := ind.(mind_entry_template);
+                   mind_entry_consnames := List.map tsl_ident ind.(mind_entry_consnames);
+                   mind_entry_lc := _;
+                |}.
   - refine (tApp _ [_]).
-    exact (tsl2' Σ ind.(mind_entry_arity)).
+    exact (tsl2' ind.(mind_entry_arity)).
     refine (mkApp (tInd (mkInd id i)) _).
     refine (from_n (fun n => proj1 (tRel n))
                    (List.length mind.(mind_entry_params))).
@@ -493,9 +540,12 @@ Definition tsl_mind_entry  (Σ : global_context) (E : tsl_context)
   - refine (map_i _ ind.(mind_entry_lc)).
     intros k t.
     refine (tApp _ [_]).
-    pose (l := (List.length mind.(mind_entry_params)) + 0 (* todo *)).
-    refine (subst _ l (tsl2' Σ t)).
-    refine (pair _ _ (mkInd id i) (tRel l))
+    refine (substl L (tsl2' t)).
+    (* pose (l := (List.length mind.(mind_entry_params)) + 0 (* todo *)). *)
+    (* refine (subst _ l (tsl2' Σ t)). *)
+    (* pose (whole_arity := recompose_prod' mind.(mind_entry_params) *)
+    (*                                             ind.(mind_entry_arity)). *)
+    (* refine (pair whole_arity (tsl2' Σ whole_arity) (tInd (mkInd id i)) (tRel l)). *)
     refine (mkApp (tConstruct (mkInd id i) k) _).
     refine (from_n (fun n => proj1 (tRel n))
                    (List.length mind.(mind_entry_params))).
@@ -518,126 +568,450 @@ Definition tsl_mind_entry  (Σ : global_context) (E : tsl_context)
     (* refine (List.rev (from_n (fun n => proj1 (tRel n)) (List.length mind.(mind_entry_params) + List.length As))). *)
 Defined.
 
-(* Implement Existing eq. *)
-(* exists @eq. intros A x y. *)
-(* Abort. *)
-
 
 
 Definition bool_entryT := Eval vm_compute in tsl_mind_entry [] [] "Coq.Init.Datatypes.bool" bool_entry.
-
 Make Inductive bool_entryT.
 
 Definition eq_entryT := Eval vm_compute in tsl_mind_entry [] [] "Coq.Init.Datatypes.eq" eq_entry.
-
 Definition eq'_entry := Eval compute in
       (mind_decl_to_entry (option_get todo_coq eq'_decl)).
 Definition eq'_entryT := Eval vm_compute in tsl_mind_entry [] [] "Top.eq'" eq'_entry.
-
-Make Inductive eq'_entryT.
-Check eq'ᵗ.
+(* Make Inductive eq'_entryT. *)
+(* Check eq'ᵗ. *)
 
 Definition nat_entryT := Eval vm_compute in tsl_mind_entry [] [] "Coq.Init.Datatypes.nat" nat_entry.
-
-Definition nat_entryT' :=
-{|
-mind_entry_record := None;
-mind_entry_finite := Finite;
-mind_entry_params := [];
-mind_entry_inds := [{|
-                    mind_entry_typename := "natᵗ";
-                    mind_entry_arity := tImpl
-                                          (tInd
-                                             (mkInd "Coq.Init.Datatypes.nat"
-                                                0)) 
-                                          (tSort sSet);
-                    mind_entry_template := false;
-                    mind_entry_consnames := ["Oᵗ"; "Sᵗ"];
-                    mind_entry_lc := [tApp (tRel 0)
-                                        [tConstruct
-                                           (mkInd "Coq.Init.Datatypes.nat" 0)
-                                           0];
-                                     tImpl
-                                       (tApp tΣ
-                                          [tproj1
-                                             (tApp 
-                                                tΣ
-                                                [tInd
-                                                 (mkInd
-                                                 "Coq.Init.Datatypes.nat" 0);
-                                                tRel 0]);
-                                          tProj
-                                            (mkInd "Template.sigma.sigma" 0,
-                                            2, 1)
-                                            (tApp 
-                                               tΣ
-                                               [tInd
-                                                 (mkInd
-                                                 "Coq.Init.Datatypes.nat" 0);
-                                               tRel 0])])
-                                       (tApp (tRel 1)
-                                          [tApp
-                                             (tConstruct
-                                                (mkInd
-                                                 "Coq.Init.Datatypes.nat" 0)
-                                                1) 
-                                             [tproj1 (tRel 0)]])] |}];
-mind_entry_polymorphic := false;
-mind_entry_private := None |}.
-
 Make Inductive nat_entryT.
+Check (natᵗ : nat -> Set).
+Check (Oᵗ : natᵗ O).
+Check (Sᵗ : forall (N : exists n, natᵗ n), natᵗ (S N.1)).
 
 Inductive list (A : Set) : Set :=
     nil : list A | cons : A -> list A -> list A.
-
 Quote Recursively Definition list_prog := @list.
 Definition list_entry := Eval compute in 
       (mind_decl_to_entry
          (option_get todo_coq
-                     (extract_mind_decl_from_program "Top.list" list_prog)
-      )).
-  
+                     (extract_mind_decl_from_program "Top.list" list_prog))).
 Definition list_entryT := Eval vm_compute in tsl_mind_entry [] [] "Top.list" list_entry.
 Make Inductive list_entryT.
 
-(* Definition list_entryT' := {| *)
-(* mind_entry_record := None; *)
-(* mind_entry_finite := Finite; *)
-(* mind_entry_params := [("A", *)
-(*                       LocalAssum *)
-(*                         (tApp Σ *)
-(*                            [tSort sSet; *)
-(*                            tLambda (nNamed "A") (tSort sSet) (tImpl (tRel 0) (tSort sSet))]))]; *)
-(* mind_entry_inds := [{| *)
-(*                     mind_entry_typename := "listᵗ"; *)
-(*                     mind_entry_arity := tImpl *)
-(*                                           (tApp (tInd (mkInd "Top.list" 0)) *)
-(*                                              [proj1 (tRel 0)])  *)
-(*                                           (tSort sSet); *)
-(*                     mind_entry_template := false; *)
-(*                     mind_entry_consnames := ["nilᵗ"; "consᵗ"]; *)
-(*                     mind_entry_lc := [tApp (tRel 1) *)
-(*                                         [tRel 0; *)
-(*                                         tApp (tConstruct (mkInd "Top.list" 0) 0) *)
-(*                                           [proj1 (tRel 0)]]; *)
-(*                                      tImpl (tApp Σ [tInd (mkInd "Top.list" 0); tRel 0]) *)
-(*                                        (tImpl *)
-(*                                           (tApp Σ *)
-(*                                              [tApp (proj1 (tRel 2)) [proj1 (tRel 1)]; *)
-(*                                              tApp *)
-(*                                                (tProj *)
-(*                                                   (mkInd "Template.sigma.sigma" 0, 2, 1) *)
-(*                                                   (tRel 2)) [tRel 1]]) *)
-(*                                           (tApp (tRel 3) *)
-(*                                              [tRel 2; *)
-(*                                              tApp (tConstruct (mkInd "Top.list" 0) 1) *)
-(*                                                [proj1 (tRel 0);  *)
-(*                                                proj1 (tRel 1);  *)
-(*                                                proj1 (tRel 2)]]))] |}]; *)
-(* mind_entry_polymorphic := false; *)
-(* mind_entry_private := None |}. *)
+Definition list_entryT' := {|
+mind_entry_record := None;
+mind_entry_finite := Finite;
+mind_entry_params := [("A",
+                      LocalAssum
+                        (tApp tΣ
+                           [tSort sSet;
+                           tLambda (nNamed "A") (tSort sSet)
+                             (tImpl (tRel 0) (tSort sSet))]))];
+mind_entry_inds := [{|
+                    mind_entry_typename := "listᵗ";
+                    mind_entry_arity := tApp
+                                          (tLambda 
+                                             (nNamed "A") 
+                                             (tSort sSet)
+                                             (tImpl (tRel 0) (tSort sSet)))
+                                          [tApp (tInd (mkInd "Top.list" 0))
+                                             [tproj1 (tRel 0)]];
+                    mind_entry_template := false;
+                    mind_entry_consnames := ["nilᵗ"; "consᵗ"];
+                    mind_entry_lc := [tApp
+                                        (tApp
+                                           (tProj
+                                              (mkInd "Template.sigma.sigma"
+                                                 0, 2, 1)
+                                              (tApp
+                                                 (tConstruct
+                                                 (mkInd
+                                                 "Template.sigma.sigma" 0) 0)
+                                                 [
+                                                 tProd 
+                                                 (nNamed "A") 
+                                                 (tSort sSet) 
+                                                 (tSort sSet);
+                                                 tLambda 
+                                                 (nNamed "f")
+                                                 (tProd 
+                                                 (nNamed "A") 
+                                                 (tSort sSet) 
+                                                 (tSort sSet))
+                                                 (tProd 
+                                                 (nNamed "A")
+                                                 (tApp 
+                                                 tΣ
+                                                 [
+                                                 tSort sSet;
+                                                 tLambda 
+                                                 (nNamed "A") 
+                                                 (tSort sSet)
+                                                 (tImpl 
+                                                 (tRel 0) 
+                                                 (tSort sSet))])
+                                                 (tApp
+                                                 (tLambda 
+                                                 (nNamed "A") 
+                                                 (tSort sSet)
+                                                 (tImpl 
+                                                 (tRel 0) 
+                                                 (tSort sSet)))
+                                                 [
+                                                 tApp 
+                                                 (tRel 1) 
+                                                 [tproj1 (tRel 0)]]));
+                                                 tInd (mkInd "Top.list" 0);
+                                                 tRel 2])) 
+                                           [tRel 0])
+                                        [tApp
+                                           (tConstruct 
+                                              (mkInd "Top.list" 0) 0)
+                                           [tproj1 (tRel 0)]];
+                                     tApp
+                                       (tLambda (nNamed "f")
+                                          (tImpl (tproj1 (tRel 0))
+                                             (tImpl
+                                                (tApp
+                                                 (tproj1
+                                                 (tApp
+                                                 (tConstruct
+                                                 (mkInd
+                                                 "Template.sigma.sigma" 0) 0)
+                                                 [
+                                                 tProd 
+                                                 (nNamed "A") 
+                                                 (tSort sSet) 
+                                                 (tSort sSet);
+                                                 tLambda 
+                                                 (nNamed "f")
+                                                 (tProd 
+                                                 (nNamed "A") 
+                                                 (tSort sSet) 
+                                                 (tSort sSet))
+                                                 (tProd 
+                                                 (nNamed "A")
+                                                 (tApp 
+                                                 tΣ
+                                                 [
+                                                 tSort sSet;
+                                                 tLambda 
+                                                 (nNamed "A") 
+                                                 (tSort sSet)
+                                                 (tImpl 
+                                                 (tRel 0) 
+                                                 (tSort sSet))])
+                                                 (tApp
+                                                 (tLambda 
+                                                 (nNamed "A") 
+                                                 (tSort sSet)
+                                                 (tImpl 
+                                                 (tRel 0) 
+                                                 (tSort sSet)))
+                                                 [
+                                                 tApp 
+                                                 (tRel 1) 
+                                                 [tproj1 (tRel 0)]]));
+                                                 tInd (mkInd "Top.list" 0);
+                                                 tRel 3])) 
+                                                 [tproj1 (tRel 1)])
+                                                (tApp
+                                                 (tproj1
+                                                 (tApp
+                                                 (tConstruct
+                                                 (mkInd
+                                                 "Template.sigma.sigma" 0) 0)
+                                                 [
+                                                 tProd 
+                                                 (nNamed "A") 
+                                                 (tSort sSet) 
+                                                 (tSort sSet);
+                                                 tLambda 
+                                                 (nNamed "f")
+                                                 (tProd 
+                                                 (nNamed "A") 
+                                                 (tSort sSet) 
+                                                 (tSort sSet))
+                                                 (tProd 
+                                                 (nNamed "A")
+                                                 (tApp 
+                                                 tΣ
+                                                 [
+                                                 tSort sSet;
+                                                 tLambda 
+                                                 (nNamed "A") 
+                                                 (tSort sSet)
+                                                 (tImpl 
+                                                 (tRel 0) 
+                                                 (tSort sSet))])
+                                                 (tApp
+                                                 (tLambda 
+                                                 (nNamed "A") 
+                                                 (tSort sSet)
+                                                 (tImpl 
+                                                 (tRel 0) 
+                                                 (tSort sSet)))
+                                                 [
+                                                 tApp 
+                                                 (tRel 1) 
+                                                 [tproj1 (tRel 0)]]));
+                                                 tInd (mkInd "Top.list" 0);
+                                                 tRel 4])) 
+                                                 [tproj1 (tRel 2)])))
+                                          (tImpl
+                                             (tApp 
+                                                tΣ
+                                                [tproj1 (tRel 1);
+                                                tProj
+                                                 (
+                                                 mkInd
+                                                 "Template.sigma.sigma" 0,
+                                                 2, 1) 
+                                                 (tRel 1)])
+                                             (tApp
+                                                (tLambda 
+                                                 (nNamed "f")
+                                                 (tImpl
+                                                 (tApp
+                                                 (tproj1
+                                                 (tApp
+                                                 (tConstruct
+                                                 (mkInd
+                                                 "Template.sigma.sigma" 0) 0)
+                                                 [
+                                                 tProd 
+                                                 (nNamed "A") 
+                                                 (tSort sSet) 
+                                                 (tSort sSet);
+                                                 tLambda 
+                                                 (nNamed "f")
+                                                 (tProd 
+                                                 (nNamed "A") 
+                                                 (tSort sSet) 
+                                                 (tSort sSet))
+                                                 (tProd 
+                                                 (nNamed "A")
+                                                 (tApp 
+                                                 tΣ
+                                                 [
+                                                 tSort sSet;
+                                                 tLambda 
+                                                 (nNamed "A") 
+                                                 (tSort sSet)
+                                                 (tImpl 
+                                                 (tRel 0) 
+                                                 (tSort sSet))])
+                                                 (tApp
+                                                 (tLambda 
+                                                 (nNamed "A") 
+                                                 (tSort sSet)
+                                                 (tImpl 
+                                                 (tRel 0) 
+                                                 (tSort sSet)))
+                                                 [
+                                                 tApp 
+                                                 (tRel 1) 
+                                                 [tproj1 (tRel 0)]]));
+                                                 tInd (mkInd "Top.list" 0);
+                                                 tRel 4])) 
+                                                 [tproj1 (tRel 2)])
+                                                 (tApp
+                                                 (tproj1
+                                                 (tApp
+                                                 (tConstruct
+                                                 (mkInd
+                                                 "Template.sigma.sigma" 0) 0)
+                                                 [
+                                                 tProd 
+                                                 (nNamed "A") 
+                                                 (tSort sSet) 
+                                                 (tSort sSet);
+                                                 tLambda 
+                                                 (nNamed "f")
+                                                 (tProd 
+                                                 (nNamed "A") 
+                                                 (tSort sSet) 
+                                                 (tSort sSet))
+                                                 (tProd 
+                                                 (nNamed "A")
+                                                 (tApp 
+                                                 tΣ
+                                                 [
+                                                 tSort sSet;
+                                                 tLambda 
+                                                 (nNamed "A") 
+                                                 (tSort sSet)
+                                                 (tImpl 
+                                                 (tRel 0) 
+                                                 (tSort sSet))])
+                                                 (tApp
+                                                 (tLambda 
+                                                 (nNamed "A") 
+                                                 (tSort sSet)
+                                                 (tImpl 
+                                                 (tRel 0) 
+                                                 (tSort sSet)))
+                                                 [
+                                                 tApp 
+                                                 (tRel 1) 
+                                                 [tproj1 (tRel 0)]]));
+                                                 tInd (mkInd "Top.list" 0);
+                                                 tRel 5])) 
+                                                 [tproj1 (tRel 3)]))
+                                                 (tImpl
+                                                 (tApp 
+                                                 tΣ
+                                                 [
+                                                 tApp
+                                                 (tproj1
+                                                 (tApp
+                                                 (tConstruct
+                                                 (mkInd
+                                                 "Template.sigma.sigma" 0) 0)
+                                                 [
+                                                 tProd 
+                                                 (nNamed "A") 
+                                                 (tSort sSet) 
+                                                 (tSort sSet);
+                                                 tLambda 
+                                                 (nNamed "f")
+                                                 (tProd 
+                                                 (nNamed "A") 
+                                                 (tSort sSet) 
+                                                 (tSort sSet))
+                                                 (tProd 
+                                                 (nNamed "A")
+                                                 (tApp 
+                                                 tΣ
+                                                 [
+                                                 tSort sSet;
+                                                 tLambda 
+                                                 (nNamed "A") 
+                                                 (tSort sSet)
+                                                 (tImpl 
+                                                 (tRel 0) 
+                                                 (tSort sSet))])
+                                                 (tApp
+                                                 (tLambda 
+                                                 (nNamed "A") 
+                                                 (tSort sSet)
+                                                 (tImpl 
+                                                 (tRel 0) 
+                                                 (tSort sSet)))
+                                                 [
+                                                 tApp 
+                                                 (tRel 1) 
+                                                 [tproj1 (tRel 0)]]));
+                                                 tInd (mkInd "Top.list" 0);
+                                                 tRel 5])) 
+                                                 [tproj1 (tRel 3)];
+                                                 tApp
+                                                 (tProj
+                                                 (
+                                                 mkInd
+                                                 "Template.sigma.sigma" 0,
+                                                 2, 1)
+                                                 (tApp
+                                                 (tConstruct
+                                                 (mkInd
+                                                 "Template.sigma.sigma" 0) 0)
+                                                 [
+                                                 tProd 
+                                                 (nNamed "A") 
+                                                 (tSort sSet) 
+                                                 (tSort sSet);
+                                                 tLambda 
+                                                 (nNamed "f")
+                                                 (tProd 
+                                                 (nNamed "A") 
+                                                 (tSort sSet) 
+                                                 (tSort sSet))
+                                                 (tProd 
+                                                 (nNamed "A")
+                                                 (tApp 
+                                                 tΣ
+                                                 [
+                                                 tSort sSet;
+                                                 tLambda 
+                                                 (nNamed "A") 
+                                                 (tSort sSet)
+                                                 (tImpl 
+                                                 (tRel 0) 
+                                                 (tSort sSet))])
+                                                 (tApp
+                                                 (tLambda 
+                                                 (nNamed "A") 
+                                                 (tSort sSet)
+                                                 (tImpl 
+                                                 (tRel 0) 
+                                                 (tSort sSet)))
+                                                 [
+                                                 tApp 
+                                                 (tRel 1) 
+                                                 [tproj1 (tRel 0)]]));
+                                                 tInd (mkInd "Top.list" 0);
+                                                 tRel 5])) 
+                                                 [tRel 3]])
+                                                 (tApp
+                                                 (tApp
+                                                 (tProj
+                                                 (
+                                                 mkInd
+                                                 "Template.sigma.sigma" 0,
+                                                 2, 1)
+                                                 (tApp
+                                                 (tConstruct
+                                                 (mkInd
+                                                 "Template.sigma.sigma" 0) 0)
+                                                 [
+                                                 tProd 
+                                                 (nNamed "A") 
+                                                 (tSort sSet) 
+                                                 (tSort sSet);
+                                                 tLambda 
+                                                 (nNamed "f")
+                                                 (tProd 
+                                                 (nNamed "A") 
+                                                 (tSort sSet) 
+                                                 (tSort sSet))
+                                                 (tProd 
+                                                 (nNamed "A")
+                                                 (tApp 
+                                                 tΣ
+                                                 [
+                                                 tSort sSet;
+                                                 tLambda 
+                                                 (nNamed "A") 
+                                                 (tSort sSet)
+                                                 (tImpl 
+                                                 (tRel 0) 
+                                                 (tSort sSet))])
+                                                 (tApp
+                                                 (tLambda 
+                                                 (nNamed "A") 
+                                                 (tSort sSet)
+                                                 (tImpl 
+                                                 (tRel 0) 
+                                                 (tSort sSet)))
+                                                 [
+                                                 tApp 
+                                                 (tRel 1) 
+                                                 [tproj1 (tRel 0)]]));
+                                                 tInd (mkInd "Top.list" 0);
+                                                 tRel 6])) 
+                                                 [tRel 4])
+                                                 [
+                                                 tApp 
+                                                 (tRel 1) 
+                                                 [tproj1 (tRel 0)]])))
+                                                [tApp 
+                                                 (tRel 1) 
+                                                 [tproj1 (tRel 0)]])))
+                                       [tApp
+                                          (tConstruct (mkInd "Top.list" 0) 1)
+                                          [tproj1 (tRel 0)]]] |}];
+mind_entry_polymorphic := false;
+mind_entry_private := None |}.
 
-(* Make Inductive list_entryT'. *)
+Make Inductive list_entryT'.
 
 
 Definition tsl_one_decl (Σ : global_context) (E : tsl_context)

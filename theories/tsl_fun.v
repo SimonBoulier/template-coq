@@ -200,3 +200,35 @@ Instance tsl_fun_instance_type : TranslationType
 (*   (* | tCoFix     : mfixpoint term -> nat -> term. *) *)
 (*   | tCoFix l n => tCoFix (List.map (map_def (tsl_rec fuel Σ E Γ)) l) n *)
 (*   end. *)
+
+Tactic Notation "eapply" constr(lemma) "unifying" open_constr(term) :=
+  let TT := type of term in
+  let T := open_constr:(_:TT) in
+  replace term with T;
+  [eapply lemma|].
+
+
+Require Import Template.Checker.
+
+Inductive squash (A : Type) : Prop :=
+  | sq : A -> squash A.
+
+
+(* todo inductives *)
+Definition global_ctx_correct (Σ : global_context) (E : tsl_context)
+  := forall id T, lookup_constant_type Σ id = Checked T
+                -> exists fuel t' T', lookup_tsl_ctx E (ConstRef id) = Some t' /\
+                           tsl_rec fuel Σ E [] T = Success _ T' /\
+                           squash (Σ ;;; [] |-- t' : T').
+
+
+Lemma infer_correct Σ Γ t T (H : Σ ;;; Γ |-- t : T)
+  : forall fuel t' T',
+    tsl_rec fuel Σ [] Γ t = Success _ t' ->
+    tsl_rec fuel Σ [] Γ T = Success _ T' -> Σ ;;; Γ |-- t' : T'.
+  induction H.
+  intro fuel; destruct fuel;
+    intros t' T' e1 e2; try discriminate.
+  - inversion e1. eapply type_Rel unifying T'. 
+
+
