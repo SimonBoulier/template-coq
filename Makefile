@@ -34,3 +34,6 @@ templatecoqchecker: coq Makefile.coqchecker
 	$(COQBIN)coqc -I src -R theories Template theories/TypingPlugin.v
 	sh movefiles.sh
 	$(MAKE) -f Makefile.coqchecker
+
+translations: coq
+	$(MAKE) -C translations
