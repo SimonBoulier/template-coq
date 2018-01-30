@@ -9,7 +9,7 @@ Ltac start :=
 
 Ltac fill_tApp :=
   match goal with
-    |- context[mktApp _ ?x] => unify x (@nil term)
+    |- context[mkApps _ ?x] => unify x (@nil term)
   end.
 
 
@@ -31,7 +31,7 @@ Section Reduce.
 
   Context (Σ : global_context).
 
-  Definition zip (t : term * list term) := tAppnil (fst t) (snd t).
+  Definition zip (t : term * list term) := mkApps (fst t) (snd t).
 
   Fixpoint reduce_stack (Γ : context) (n : nat) (t : term) (stack : list term)
     : option (term * list term) :=
@@ -615,10 +615,10 @@ Section Typecheck.
         cumul Σ Γ (tProd na a' b') (tProd na a b).
 
   Conjecture cumul_reduce_to_ind : forall Γ t i u args,
-      Σ ;;; Γ |-- t <= mktApp (tInd i u) args <->
+      Σ ;;; Γ |-- t <= mkApps (tInd i u) args <->
       exists args',
         reduce_to_ind Γ t = Checked (i, u, args') /\
-        cumul Σ Γ (mktApp (tInd i u) args') (mktApp (tInd i u) args).
+        cumul Σ Γ (mkApps (tInd i u) args') (mkApps (tInd i u) args).
 
   Lemma lookup_env_id {id decl} : lookup_env Σ id = Some decl -> id = global_decl_ident decl.
   Proof.

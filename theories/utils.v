@@ -149,3 +149,34 @@ Fixpoint subst_app (t : term) (us : list term) : term :=
 
 Definition tmMkInductive' (mind : minductive_decl) : TemplateMonad unit
   := tmMkInductive (mind_decl_to_entry mind).
+
+
+
+Program Fixpoint safe_nth {A} (l : list A) (n : nat | n < List.length l) : A :=
+  match l with
+  | nil => !
+  | hd :: tl =>
+    match n with
+    | 0 => hd
+    | S n => safe_nth tl n
+    end
+  end.
+Next Obligation.
+  simpl in H. inversion H.
+Defined.
+Next Obligation.
+  simpl in H. auto with arith.
+Defined.
+
+
+Lemma nth_error_safe_nth {A} n (l : list A) (isdecl : n < Datatypes.length l) :
+  nth_error l n = Some (safe_nth l (exist _ n isdecl)).
+Proof.
+  revert n isdecl; induction l; intros.
+  - inversion isdecl.
+  - destruct n as [| n']; simpl.
+    reflexivity.
+    simpl in IHl.
+    simpl in isdecl.
+    now rewrite <- IHl.
+Qed.

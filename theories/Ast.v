@@ -1,25 +1,12 @@
 Require Import Coq.Strings.String.
 Require Import Coq.PArith.BinPos.
 Require Import List. Import ListNotations.
-Require Import Template.monad_utils.
+From Template Require Import monad_utils univ.
 
 Definition ident := string. (* e.g. nat *)
 Definition kername := string. (* e.g. Coq.Init.Datatypes.nat *)
 
-
-Inductive level : Set :=
-| lProp
-| lSet
-| Level (_ : string)
-| LevelVar (_ : nat) (* these are debruijn indices *).
-
-Definition universe := list (level * bool). (* true if it is level+1 *)
-Definition uProp : universe := [(lProp, false)].
-Definition uSet : universe := [(lSet, false)].
-
-
-Inductive sort_family : Set :=
-| InProp | InSet | InType.
+Inductive sort_family : Set := InProp | InSet | InType.
 
 Inductive name : Set :=
 | nAnon
@@ -54,8 +41,6 @@ Record def (term : Set) : Set := mkdef
 Definition mfixpoint (term : Set) : Set :=
   list (def term).
 
-Definition universe_instance : Set := list level.
-
 Inductive term : Set :=
 | tRel       : nat -> term
 | tVar       : ident -> term (** For free variables (e.g. in a goal) *)
@@ -77,6 +62,19 @@ Inductive term : Set :=
 | tProj      : projection -> term -> term
 | tFix       : mfixpoint term -> nat -> term
 | tCoFix     : mfixpoint term -> nat -> term.
+
+
+Definition mkApps t us :=
+  match us with
+  | nil => t
+  | _ => match t with
+        | tApp f args => tApp f (args ++ us)
+        | _ => tApp t us
+        end
+  end.
+
+Definition mkApp t u := Eval cbn in mkApps t [u].
+
 
 Record inductive_body :=
   mkinductive_body
@@ -155,6 +153,38 @@ Record mutual_inductive_entry : Set := {
      the number of polymorphically bound definitions*)
   mind_entry_private : option bool
 }.
+
+
+(** * Environments *)
+
+(* local declaration *)
+Record context_decl := { decl_name : name ;
+                         decl_body : option term ;
+                         decl_type : term }.
+
+Definition vass x A := {| decl_name := x; decl_body := None; decl_type := A |}.
+Definition vdef x t A :=
+  {| decl_name := x; decl_body := Some t; decl_type := A |}.
+
+(* The context of De Bruijn indices *)
+(* local ctx *)
+Definition context := list context_decl.
+
+Definition snoc {A} (Γ : list A) (d : A) := d :: Γ.
+
+Notation " Γ ,, d " := (snoc Γ d) (at level 20, d at next level).
+
+(* The context of global constants *)
+Definition global_context := list global_decl.
+
+
+
+Record eviron := { env_global : global_context ;
+                   env_local  : context ;
+                   env_univ   : universe_context }.
+
+
+
 
 
 

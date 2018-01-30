@@ -209,6 +209,7 @@ struct
 
   let pkg_datatypes = ["Coq";"Init";"Datatypes"]
   let pkg_reify = ["Template";"Ast"]
+  let pkg_level = ["Template";"kernel";"univ";"Level"]
   let pkg_string = ["Coq";"Strings";"String"]
 
   let r_reify = resolve_symbol pkg_reify
@@ -245,8 +246,8 @@ struct
   let kNative = r_reify "NativeCast"
   let kCast = r_reify "Cast"
   let kRevertCast = r_reify "RevertCast"
-  let lProp = r_reify "lProp"
-  let lSet = r_reify "lSet"
+  let lProp = resolve_symbol pkg_level "prop"
+  let lSet = resolve_symbol pkg_level "set"
   let sfProp = r_reify "InProp"
   let sfSet = r_reify "InSet"
   let sfType = r_reify "InType"
@@ -261,9 +262,9 @@ struct
      r_reify "tLetIn", r_reify "tApp", r_reify "tCase", r_reify "tFix",
      r_reify "tConstruct", r_reify "tConst", r_reify "tInd", r_reify "tCoFix", r_reify "tProj")
 
-  let tlevel = r_reify "level"
-  let tLevel = r_reify "Level"
-  let tLevelVar = r_reify "LevelVar"
+  let tlevel = resolve_symbol pkg_level "t"
+  let tLevel = resolve_symbol pkg_level "Level"
+  let tLevelVar = resolve_symbol pkg_level "Var"
 
   let (tdef,tmkdef) = (r_reify "def", r_reify "mkdef")
   let (tLocalDef,tLocalAssum,tlocal_entry) = (r_reify "LocalDef", r_reify "LocalAssum", r_reify "local_entry")
@@ -1610,12 +1611,12 @@ struct
         let evdref = ref evm in
         let t' = denote_term evdref t in
         (* todo: investigate why the following bugs *)
-        (* Feedback.msg_debug (str "lllllllllll"); *)
-        (* let t' = Typing.e_solve_evars env evdref (EConstr.of_constr t') in *)
-        (* Feedback.msg_debug (str "lllllllllll1"); *)
-        (* Typing.e_check env evdref t' (EConstr.of_constr typ) ; *)
-        (* Feedback.msg_debug (str "lllllllllll2"); *)
-        (* let t' = EConstr.to_constr !evdref t' in *)
+        Feedback.msg_debug (str "lllllllllll");
+        let t' = Typing.e_solve_evars env evdref (EConstr.of_constr t') in
+        Feedback.msg_debug (str "lllllllllll1");
+        Typing.e_check env evdref t' (EConstr.of_constr typ) ;
+        Feedback.msg_debug (str "lllllllllll2");
+        let t' = EConstr.to_constr !evdref t' in
         k (!evdref, t')
       | _ -> monad_failure "tmUnquoteTyped" 2
     else if Term.eq_constr coConstr tmFreshName then
