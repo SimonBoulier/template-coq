@@ -1,7 +1,6 @@
 (*i camlp4deps: "parsing/grammar.cma" i*)
 (*i camlp4use: "pa_extend.cmp" i*)
 
-open Univ
 open Term
 open Ast0
 open Reify
@@ -19,7 +18,7 @@ struct
   type t = term
   type quoted_ident = char list
   type quoted_name = name
-  type quoted_sort = universe
+  type quoted_sort = Univ0.universe
   type quoted_sort_family = sort_family
   type quoted_cast_kind = cast_kind
   type quoted_kernel_name = char list
@@ -30,7 +29,7 @@ struct
   type quoted_bool = bool
   type quoted_proj = projection
 
-  type quoted_univ_instance = level list
+  type quoted_univ_instance = Univ0.universe_level list
   type quoted_mind_params = (ident * local_entry) list
   type quoted_ind_entry =
     quoted_ident * t * quoted_bool * quoted_ident list * t list
@@ -56,19 +55,19 @@ struct
   let quote_bool x = x
 
   let quote_level l =
-    if Level.is_prop l then Coq_lProp
-    else if Level.is_set l then Coq_lSet
-    else match Level.var_index l with
-         | Some x -> LevelVar (quote_int x)
-         | None -> Level (quote_string (Level.to_string l))
+    if Univ.Level.is_prop l then Univ0.Level.prop
+    else if Univ.Level.is_set l then Univ0.Level.set
+    else match Univ.Level.var_index l with
+         | Some x -> Univ0.Level.Var (quote_int x)
+         | None -> Univ0.Level.Level (quote_string (Univ.Level.to_string l))
 
-  let quote_universe s : universe =
+  let quote_universe s : Univ0.universe =
     (* hack because we can't recover the list of level*int *)
     (* todo : map on LSet is now exposed in Coq trunk, we should use it to remove this hack *)
-    let levels = LSet.elements (Universe.levels s) in
+    let levels = Univ.LSet.elements (Univ.Universe.levels s) in
     List.map (fun l -> let l' = quote_level l in
                        (* is indeed i always 0 or 1 ? *)
-                       let b' = quote_bool (Universe.exists (fun (l2,i) -> Level.equal l l2 && i = 1) s) in
+                       let b' = quote_bool (Univ.Universe.exists (fun (l2,i) -> Univ.Level.equal l l2 && i = 1) s) in
                        (l', b'))
              levels
 

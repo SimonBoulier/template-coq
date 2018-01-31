@@ -1,5 +1,5 @@
 From Coq Require Import Bool String List Program BinPos Compare_dec Omega.
-From Template Require Import Template Ast Induction LiftSubst Typing monad_utils.
+From Template Require Import Template univ Ast Induction LiftSubst Typing monad_utils.
 Import MonadNotation.
 
 Set Asymmetric Patterns.
@@ -173,7 +173,7 @@ Definition isConstruct c :=
 
 Inductive conv_pb :=
 | Conv
-| Cumul.
+| Cumul (φ : constraints).
 
 Section Conversion.
 
@@ -243,7 +243,7 @@ Section Conversion.
           redt <- reduce_stack nodelta_flags Σ Γ n t2 l2 ;;
           let '(t2, l2) := redt in
           isconv_prog n leq Γ t1 l1 t2 l2
-        | None => on_cond (match leq with Conv => eq_term t1 t2 | Cumul => leq_term t1 t2 end)
+        | None => on_cond (match leq with Conv => eq_term t1 t2 | Cumul φ => leq_term φ t1 t2 end)
         end
       end
     in
@@ -391,28 +391,28 @@ Definition check_conv_gen {F:Fuel} conv_pb Σ Γ t u :=
   | None => raise (NotEnoughFuel fuel)
   end.
 
-Definition check_conv_leq {F:Fuel} := check_conv_gen Cumul.
+Definition check_conv_leq {F:Fuel} φ := check_conv_gen (Cumul φ).
 Definition check_conv {F:Fuel} := check_conv_gen Conv.
 
-Conjecture conv_spec : forall {F:Fuel} Σ Γ t u,
-    Σ ;;; Γ |-- t = u <-> check_conv Σ Γ t u = Checked ().
+Conjecture conv_spec : forall {F:Fuel} Σ φ Γ t u,
+    Σ ;;; φ ;;; Γ |- t = u <-> check_conv Σ Γ t u = Checked ().
 
-Conjecture cumul_spec : forall {F:Fuel} Σ Γ t u,
-    Σ ;;; Γ |-- t <= u <-> check_conv_leq Σ Γ t u = Checked ().
+Conjecture cumul_spec : forall {F:Fuel} Σ φ Γ t u,
+    Σ ;;; φ ;;; Γ |- t <= u <-> check_conv_leq φ Σ Γ t u = Checked ().
 
-Conjecture reduce_cumul : forall Σ Γ n t, Σ ;;; Γ |-- try_reduce Σ Γ n t <= t.
+Conjecture reduce_cumul : forall Σ φ Γ n t, Σ ;;; φ ;;; Γ |- try_reduce Σ Γ n t <= t.
 
 Section Typecheck.
   Context `{F:Fuel}.
-  Context (Σ : global_context).
+  Context (Σ : global_context) (φ : constraints).
 
-  Definition hnf_stack Σ Γ t :=
+  Definition hnf_stack Γ t :=
     match reduce_stack RedFlags.default Σ Γ fuel t [] with
     | Some t' => ret t'
     | None => raise (NotEnoughFuel fuel)
     end.
 
-  Definition reduce Σ Γ t :=
+  Definition reduce Γ t :=
     match reduce_opt RedFlags.default Σ Γ fuel t with
     | Some t' => ret t'
     | None => raise (NotEnoughFuel fuel)
@@ -421,33 +421,33 @@ Section Typecheck.
   Definition convert_leq Γ (t u : term) : typing_result unit :=
     if eq_term t u then ret ()
     else
-      match isconv Σ fuel Cumul Γ t [] u [] with
+      match isconv Σ fuel (Cumul φ) Γ t [] u [] with
       | Some b =>
         if b then ret ()
         else raise (NotConvertible Γ t u t u)
       | None => (* fallback *)
-        t' <- reduce Σ Γ t ;;
-        u' <- reduce Σ Γ u ;;
-        if leq_term t' u' then ret ()
+        t' <- reduce Γ t ;;
+        u' <- reduce Γ u ;;
+        if leq_term φ t' u' then ret ()
         else raise (NotConvertible Γ t u t' u')
       end.
 
   Definition reduce_to_sort Γ (t : term) : typing_result universe :=
-    t' <- hnf_stack Σ Γ t ;;
+    t' <- hnf_stack Γ t ;;
     match t' with
     | (tSort s, []) => ret s
     | _ => raise (NotASort t)
     end.
 
   Definition reduce_to_prod Γ (t : term) : typing_result (term * term) :=
-    t' <- hnf_stack Σ Γ t ;;
+    t' <- hnf_stack Γ t ;;
     match t' with
     | (tProd _ a b,[]) => ret (a, b)
     | _ => raise (NotAProduct t (zip t'))
     end.
 
-  Definition reduce_to_ind Γ (t : term) : typing_result (inductive * list level * list term) :=
-    t' <- hnf_stack Σ Γ t ;;
+  Definition reduce_to_ind Γ (t : term) : typing_result (inductive * list Level.t * list term) :=
+    t' <- hnf_stack Γ t ;;
     match t' with
     | (tInd i u, l) => ret (i, u, l)
     | _ => raise (NotAnInductive t)
@@ -484,7 +484,7 @@ Section Typecheck.
       |  _ => raise (UndeclaredConstant cst)
     end.
 
-  Definition lookup_ind_type ind i (u : list level) (* TODO Universes *) :=
+  Definition lookup_ind_type ind i (u : list Level.t) (* TODO Universes *) :=
     match lookup_env Σ ind with
     | Some (InductiveDecl _ {| ind_bodies := l |}) =>
       match nth_error l i with
@@ -521,7 +521,7 @@ Section Typecheck.
     | tMeta n => raise (UnboundMeta n)
     | tEvar ev args => raise (UnboundEvar ev)
 
-    | tSort s => ret (tSort (succ_universe s))
+    | tSort s => ret (tSort s)  (* FIXME suc s *)
 
     | tCast c k t =>
       infer_type infer Γ t ;;
@@ -531,7 +531,7 @@ Section Typecheck.
     | tProd n t b =>
       s1 <- infer_type infer Γ t ;;
       s2 <- infer_type infer (Γ ,, vass n t) b ;;
-      ret (tSort (max_universe s1 s2))
+      ret (tSort (Universe.sup s1 s2))
 
     | tLambda n t b =>
       infer_type infer Γ t ;;
@@ -602,23 +602,23 @@ Section Typecheck.
   Open Scope monad.
 
   Conjecture cumul_convert_leq : forall Γ t t',
-    Σ ;;; Γ |-- t <= t' <-> convert_leq Γ t t' = Checked ().
+    Σ ;;; φ ;;; Γ |- t <= t' <-> convert_leq Γ t t' = Checked ().
 
   Conjecture cumul_reduce_to_sort : forall Γ t s',
-      Σ ;;; Γ |-- t <= tSort s' <->
-      exists s'', reduce_to_sort Γ t = Checked s'' /\ leq_universe s'' s' = true.
+      Σ ;;; φ ;;; Γ |- t <= tSort s' <->
+      exists s'', reduce_to_sort Γ t = Checked s'' /\ check_leq φ s'' s' = true.
 
   Conjecture cumul_reduce_to_product : forall Γ t na a b,
-      Σ ;;; Γ |-- t <= tProd na a b ->
+      Σ ;;; φ ;;; Γ |- t <= tProd na a b ->
       exists a' b',
         reduce_to_prod Γ t = Checked (a', b') /\
-        cumul Σ Γ (tProd na a' b') (tProd na a b).
+        cumul Σ φ Γ (tProd na a' b') (tProd na a b).
 
   Conjecture cumul_reduce_to_ind : forall Γ t i u args,
-      Σ ;;; Γ |-- t <= mkApps (tInd i u) args <->
+      Σ ;;; φ ;;; Γ |- t <= mkApps (tInd i u) args <->
       exists args',
         reduce_to_ind Γ t = Checked (i, u, args') /\
-        cumul Σ Γ (mkApps (tInd i u) args') (mkApps (tInd i u) args).
+        cumul Σ φ Γ (mkApps (tInd i u) args') (mkApps (tInd i u) args).
 
   Lemma lookup_env_id {id decl} : lookup_env Σ id = Some decl -> id = global_decl_ident decl.
   Proof.
@@ -648,7 +648,7 @@ Section Typecheck.
   Admitted.
 
   Lemma infer_complete Γ t T :
-    Σ ;;; Γ |-- t : T -> exists T', infer Γ t = Checked T' /\ cumul Σ Γ T' T.
+    Σ ;;; φ ;;; Γ |- t : T -> exists T', infer Γ t = Checked T' /\ cumul Σ φ Γ T' T.
   Proof.
     induction 1; unfold infer_type, infer_cumul in *; simpl; unfold infer_type, infer_cumul in *;
       repeat match goal with
@@ -657,6 +657,8 @@ Section Typecheck.
 
     - eexists. rewrite (nth_error_safe_nth n _ isdecl).
       split; [ reflexivity | tc ].
+
+    - admit.
 
     - eexists.
       apply cumul_reduce_to_sort in IHtyping1 as [s'' [-> Hs'']].
@@ -724,13 +726,13 @@ Section Typecheck.
         destruct (convert_leq Γ t t2) eqn:?; [ simpl | simpl; intro; discriminate ]
       end; try intros [= <-].
 
-  Lemma leq_universe_refl x : leq_universe x x = true.
+  Lemma leq_universe_refl x : check_leq φ x x = true. (* FIXME condition on φ? *)
   Proof. induction x. reflexivity. simpl. Admitted.
   Hint Resolve leq_universe_refl : typecheck.
   Lemma infer_type_correct Γ t x :
-    (forall (Γ : context) (T : term), infer Γ t = Checked T -> Σ;;; Γ |-- t : T) ->
+    (forall (Γ : context) (T : term), infer Γ t = Checked T -> Σ ;;; φ ;;; Γ |- t : T) ->
     infer_type infer Γ t = Checked x ->
-    Σ ;;; Γ |-- t : tSort x.
+    Σ ;;; φ ;;; Γ |- t : tSort x.
   Proof.
     intros IH H.
     unfold infer_type in H.
@@ -738,16 +740,17 @@ Section Typecheck.
     specialize (IH _ _ Heqt0).
     intros.
     eapply type_Conv. apply IH.
-    constructor.
+    constructor. admit.
     rewrite cumul_reduce_to_sort. exists x. split; tc.
-  Qed.
+  Admitted.
+
 
   Lemma infer_cumul_correct Γ t u x x' :
-    (forall (Γ : context) (T : term), infer Γ u = Checked T -> Σ;;; Γ |-- u : T) ->
-    (forall (Γ : context) (T : term), infer Γ t = Checked T -> Σ;;; Γ |-- t : T) ->
+    (forall (Γ : context) (T : term), infer Γ u = Checked T -> Σ;;; φ ;;; Γ |- u : T) ->
+    (forall (Γ : context) (T : term), infer Γ t = Checked T -> Σ;;; φ ;;; Γ |- t : T) ->
     infer_type infer Γ u = Checked x' ->
     infer_cumul infer Γ t u = Checked x ->
-    Σ ;;; Γ |-- t : u.
+    Σ ;;; φ ;;; Γ |- t : u.
   Proof.
     intros IH IH' H H'.
     unfold infer_cumul in H'.
@@ -773,7 +776,7 @@ Section Typecheck.
   (* Ltac admit := apply cheat. *)
   
   Lemma infer_correct Γ t T :
-    infer Γ t = Checked T -> Σ ;;; Γ |-- t : T.
+    infer Γ t = Checked T -> Σ ;;; φ ;;; Γ |- t : T.
   Proof.
     induction t in Γ, T |- * ; simpl; intros; try discriminate;
       revert H; infers; try solve [econstructor; infco].
@@ -783,6 +786,7 @@ Section Typecheck.
       destruct H.
       intros [= <-]. constructor.
 
+    - admit.
     - admit.
 
     - intros.
@@ -822,7 +826,8 @@ Section Typecheck.
   
 End Typecheck.
 
-Extract Constant infer_correct => "(fun f sigma ctx t ty -> assert false)".
+Extract Constant infer_type_correct => "(fun f sigma phi ctx t x -> assert false)".
+Extract Constant infer_correct => "(fun f sigma phi ctx t ty -> assert false)".
 
 Instance default_fuel : Fuel := { fuel := 2 ^ 18 }.
 
@@ -861,25 +866,25 @@ Section Checker.
     | TypeError e => EnvError (IllFormedDecl id e)
     end.
 
-  Definition check_wf_type id Σ t :=
-    wrap_error id (infer_type Σ (infer Σ) [] t) ;; ret ().
+  Definition check_wf_type id Σ φ t :=
+    wrap_error id (infer_type Σ (infer Σ φ) [] t) ;; ret ().
 
-  Definition check_wf_judgement id Σ t ty :=
-    wrap_error id (check Σ [] t ty) ;; ret ().
+  Definition check_wf_judgement id Σ φ t ty :=
+    wrap_error id (check Σ φ [] t ty) ;; ret ().
 
-  Definition infer_term Σ t :=
-    wrap_error "" (infer Σ [] t).
+  Definition infer_term Σ φ t :=
+    wrap_error "" (infer Σ φ [] t).
 
-  Definition check_wf_decl Σ (g : global_decl) : EnvCheck () :=
+  Definition check_wf_decl Σ φ (g : global_decl) : EnvCheck () :=
     match g with
     | ConstantDecl id cst =>
       match cst.(cst_body) with
-      | Some term => check_wf_judgement id Σ term cst.(cst_type)
-      | None => check_wf_type id Σ cst.(cst_type)
+      | Some term => check_wf_judgement id Σ φ term cst.(cst_type)
+      | None => check_wf_type id Σ φ cst.(cst_type)
       end
     | InductiveDecl id inds =>
       List.fold_left (fun acc body =>
-                        acc ;; check_wf_type body.(ind_name) Σ body.(ind_type)) inds.(ind_bodies) (ret ())
+                        acc ;; check_wf_type body.(ind_name) Σ φ body.(ind_type)) inds.(ind_bodies) (ret ())
     end.
 
   Fixpoint check_fresh id env : EnvCheck () :=
@@ -892,17 +897,17 @@ Section Checker.
       else ret ()
     end.
 
-  Fixpoint check_wf_env (g : global_context) :=
+  Fixpoint check_wf_env φ (g : global_context) :=
     match g with
     | [] => ret ()
     | g :: env =>
-      check_wf_env env ;;
-      check_wf_decl env g ;;
+      check_wf_env φ env ;;
+      check_wf_decl env φ g ;;
       check_fresh (global_decl_ident g) env
     end.
 
-  Definition typecheck_program (p : program) : EnvCheck term :=
+  Definition typecheck_program φ (p : program) : EnvCheck term :=
     let '(Σ, t) := decompose_program p [] in
-    check_wf_env Σ ;; infer_term Σ t.
+    check_wf_env φ Σ ;; infer_term Σ φ t.
 
 End Checker.

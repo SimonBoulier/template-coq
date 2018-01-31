@@ -19,7 +19,7 @@ let check gr =
   let term = Template_coq.quote_term_rec env (EConstr.to_constr sigma c) in
   Feedback.msg_debug (str"Finished quoting.. checking.");
   let fuel = pow two (pow two (pow two two)) in
-  match Checker.typecheck_program fuel term with
+  match Checker.typecheck_program fuel Univ0.Constraint.empty (* FIXME empty? *) term with
   | CorrectDecl t ->
      Feedback.msg_debug (str"Finished checking successfully")
   | EnvError (AlreadyDeclared id) ->

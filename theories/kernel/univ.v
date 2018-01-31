@@ -98,7 +98,24 @@ Module Level.
   (* val var_index : t -> int option *)
 End Level.
 
+Require FSets.FSetWeakList.
+Require FSets.FMapWeakList.
+Module LevelDecidableType.
+   Definition t : Type := Level.t.
+   Definition eq : t -> t -> Prop := eq.
+   Definition eq_refl : forall x : t, eq x x := @eq_refl _.
+   Definition eq_sym : forall x y : t, eq x y -> eq y x := @eq_sym _.
+   Definition eq_trans : forall x y z : t, eq x y -> eq y z -> eq x z := @eq_trans _.
+   Definition eq_dec : forall x y : t, {eq x y} + {~ eq x y}.
+     unfold eq. repeat decide equality.
+   Defined.
+End LevelDecidableType.
+Module LevelSet := FSets.FSetWeakList.Make LevelDecidableType.
+Module LevelMap := FSets.FMapWeakList.Make LevelDecidableType.
+
 Definition universe_level := Level.t.
+
+
 
 Module Universe.
   Module Expr.
@@ -155,7 +172,7 @@ Module Universe.
     Definition type1 : t := (Level.set, true).
   End Expr.
 
-  (** INVARIANTS: not empty, sorted, no duplicate *)
+  (** INVARIANTS: not empty, sorted ??, no duplicate *)
   Definition t := list Expr.t.
 
   (* val compare : t -> t -> int *)
@@ -193,9 +210,9 @@ Module Universe.
   (** Try to get a level out of a universe, returns [None] if it
       is an algebraic universe. *)
 
-  (* FIXME: remove duplicates *)
   Definition levels (u : t) : list Level.t :=
-    map Expr.get_level u.
+    LevelSet.elements (fold_left (fun s '(l, _) => LevelSet.add l s)
+                                 u LevelSet.empty).
   (** Get the levels inside the universe, forgetting about increments *)
 
   Definition is_small (u : t) : bool :=
@@ -259,7 +276,8 @@ Module ConstraintTypeDec.
   Definition eq : t -> t -> Prop := eq.
   Definition eq_equiv : RelationClasses.Equivalence eq := _.
   Definition eq_dec : forall x y : t, {eq x y} + {~ eq x y}.
-  Admitted.
+    unfold eq. repeat decide equality.
+  Defined.
 End ConstraintTypeDec.
 Module Constraint := MSets.MSetWeakList.Make ConstraintTypeDec.
 
