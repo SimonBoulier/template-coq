@@ -1,7 +1,8 @@
 Require Import Coq.Strings.String.
 Require Import Coq.PArith.BinPos.
 Require Import List. Import ListNotations.
-From Template Require Import monad_utils univ.
+From Template Require Import monad_utils.
+From Template Require Export univ.
 
 Definition ident := string. (* e.g. nat *)
 Definition kername := string. (* e.g. Coq.Init.Datatypes.nat *)
@@ -76,6 +77,7 @@ Definition mkApps t us :=
 Definition mkApp t u := Eval cbn in mkApps t [u].
 
 
+(* one_inductive_body from declarations.ml *)
 Record inductive_body :=
   mkinductive_body
     { ind_name : ident;
@@ -86,12 +88,16 @@ Record inductive_body :=
       ind_projs : list (ident * term) (* names and types of projections, if any.
                                      Type under context of params and inductive object *) }.
 
+(* mutual_inductive_body from declarations *)
 Record minductive_decl :=
   { ind_npars : nat;
-    ind_bodies : list inductive_body }.
+    ind_bodies : list inductive_body ;
+    ind_universes : universe_context
+  }.
 
+(* constant_body from declarations.ml *)
 Record constant_decl :=
-  { cst_universes : universe_instance;
+  { cst_universes : universe_context;
     cst_type : term;
     cst_body : option term }.
 
@@ -130,15 +136,19 @@ Inductive recursivity_kind :=
   | BiFinite (** = non-recursive, like in "Record" definitions *).
 
 (* kernel/entries.mli*)
-Record definition_entry : Set := {
+Record definition_entry := {
   definition_entry_type : term;
-  definition_entry_body : term }.
-  (* Missing universes, opaque, inline *)
+  definition_entry_body : term;
+  (* definition_entry_polymorphic : bool; *)
+  (* definition_entry_universes   : universe_context; *)
+  (* definition_entry_opaque      : bool; *)
+ }.
+
 
 Record parameter_entry : Set := {
   parameter_entry_type : term }.
 
-Inductive constant_entry : Set :=
+Inductive constant_entry :=
 | ParameterEntry (p : parameter_entry)
 | DefinitionEntry (def : definition_entry).
 
@@ -188,11 +198,11 @@ Record eviron := { env_global : global_context ;
 
 
 
-Inductive program : Set :=
-| PConstr : string -> universe_instance -> term (* type *) -> term (* body *) -> program -> program
-| PType   : ident -> nat (* # of parameters, w/o let-ins *) ->
+Inductive program :=
+| PConstr : string -> universe_context -> term (* type *) -> term (* body *) -> program -> program
+| PType   : ident -> universe_context -> nat (* # of parameters, w/o let-ins *) ->
             list inductive_body (* Non-empty *) -> program -> program
-| PAxiom  : ident -> universe_instance -> term (* the type *) -> program -> program
+| PAxiom  : ident -> universe_context -> term (* the type *) -> program -> program
 | PIn     : term -> program.
 
 Definition extend_program (p : program) (d : global_decl) : program :=
@@ -201,8 +211,8 @@ Definition extend_program (p : program) (d : global_decl) : program :=
     => PConstr i u (* TODO universes *) ty body p
   | ConstantDecl i {| cst_universes := u; cst_type:=ty;  cst_body:=None |}
     => PAxiom i u ty p
-  | InductiveDecl i {| ind_npars:=n; ind_bodies := l |}
-    => PType i n l p
+  | InductiveDecl i {| ind_npars:=n; ind_bodies := l ; ind_universes := u |}
+    => PType i u n l p
   end.
 
 

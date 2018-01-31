@@ -115,7 +115,7 @@ Make Definition x := (tProj (mkInd "prod'" 0, 2, 1)
 Definition one_i : one_inductive_entry :=
 {|
   mind_entry_typename := "demoBool";
-  mind_entry_arity := tSort uSet;
+  mind_entry_arity := tSort Universe.type0;
   mind_entry_template := false;
   mind_entry_consnames := ["demoTrue"; "demoFalse"];
   mind_entry_lc := [tRel 1; tRel 1];
@@ -124,7 +124,7 @@ Definition one_i : one_inductive_entry :=
 Definition one_i2 : one_inductive_entry :=
 {|
   mind_entry_typename := "demoBool2";
-  mind_entry_arity := tSort uSet;
+  mind_entry_arity := tSort Universe.type0;
   mind_entry_template := false;
   mind_entry_consnames := ["demoTrue2"; "demoFalse2"];
   mind_entry_lc := [tRel 0; tRel 0];
@@ -150,7 +150,7 @@ tProd nAnon A B.
 Definition one_list_i : one_inductive_entry :=
 {|
   mind_entry_typename := "demoList";
-  mind_entry_arity := tSort uSet;
+  mind_entry_arity := tSort Universe.type0;
   mind_entry_template := false;
   mind_entry_consnames := ["demoNil"; "demoCons"];
   mind_entry_lc := [tApp (tRel 1) [tRel 0]; 
@@ -161,7 +161,7 @@ Definition mut_list_i : mutual_inductive_entry :=
 {|
   mind_entry_record := None;
   mind_entry_finite := Finite;
-  mind_entry_params := [("A", LocalAssum (tSort uSet))];
+  mind_entry_params := [("A", LocalAssum (tSort Universe.type0))];
   mind_entry_inds := [one_list_i];
   mind_entry_polymorphic := false;
   mind_entry_private := None;
@@ -175,7 +175,7 @@ Make Inductive mut_list_i.
 Definition one_pt_i : one_inductive_entry :=
 {|
   mind_entry_typename := "Point";
-  mind_entry_arity := tSort uSet;
+  mind_entry_arity := tSort Universe.type0;
   mind_entry_template := false;
   mind_entry_consnames := ["mkPoint"];
   mind_entry_lc := [
@@ -186,7 +186,7 @@ Definition mut_pt_i : mutual_inductive_entry :=
 {|
   mind_entry_record := Some (Some "pp");
   mind_entry_finite := BiFinite;
-  mind_entry_params := [("A", LocalAssum (tSort uSet))];
+  mind_entry_params := [("A", LocalAssum (tSort Universe.type0))];
   mind_entry_inds := [one_pt_i];
   mind_entry_polymorphic := false;
   mind_entry_private := None;
@@ -362,11 +362,12 @@ Test Quote Prop.
 Inductive T : Type :=
   | toto : Type -> T.
 Quote Recursively Definition TT := T.
-Make Definition t := (tSort ([(Level "Top.20000", false)])).
-Make Definition t' := (tSort ([(Level "Top.20000", false); (Level "Top.20001", true)])).
-Make Definition myProp := (tSort [(lProp, false)]).
-Make Definition mySucProp := (tSort [(lProp, true)]).
-Make Definition mySet := (tSort [(lSet, false)]).
+Make Definition t := (tSort ([(Level.Level "Top.20000", false)])).
+Make Definition t' := (tSort ([(Level.Level "Top.20000", false); (Level.Level "Top.20001", true)])).
+Make Definition myProp := (tSort [(Level.lProp, false)]).
+Make Definition myProp' := Eval compute in (tSort Universe.type0m).
+Make Definition mySucProp := (tSort [(Level.lProp, true)]).
+Make Definition mySet := (tSort [(Level.lSet, false)]).
 Print Universes.
 
 (** Cofixpoints *)

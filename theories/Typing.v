@@ -541,9 +541,9 @@ Conjecture congr_cumul_prod : forall Σ φ Γ na na' M1 M2 N1 N2,
     cumul Σ φ Γ (tProd na M1 M2) (tProd na' N1 N2).
 
 
-Record squash (A : Set) : Prop := { _ : A }.
+Record squash (A : Type) : Prop := { _ : A }.
 
-Inductive typing (Σ : global_context) (φ : constraints) (Γ : context) : term -> term -> Set :=
+Inductive typing (Σ : global_context) (φ : constraints) (Γ : context) : term -> term -> Type :=
 | type_Rel n : forall (isdecl : n < List.length Γ),
     Σ ;;; φ ;;; Γ |- (tRel n) : lift0 (S n) (safe_nth Γ (exist _ n isdecl)).(decl_type)
 
@@ -643,8 +643,8 @@ Fixpoint decompose_program (p : program) (env : global_context) : global_context
   | PAxiom s u ty p =>
     let decl := {| cst_universes := u; cst_type := ty; cst_body := None |} in
     decompose_program p (ConstantDecl s decl :: env)
-  | PType ind m inds p =>
-    let decl := {| ind_npars := m; ind_bodies := inds |} in
+  | PType ind u m inds p =>
+    let decl := {| ind_npars := m; ind_bodies := inds; ind_universes := u |} in
     decompose_program p (InductiveDecl ind decl :: env)
   | PIn t => (env, t)
   end.
@@ -653,7 +653,7 @@ Definition isType (Σ : global_context) (φ : constraints) (Γ : context) (t : t
   { s : _ & Σ ;;; φ ;;; Γ |- t : tSort s }.
 
 Inductive type_constructors (Σ : global_context) (φ : constraints) (Γ : context) :
-  list (ident * term * nat) -> Set :=
+  list (ident * term * nat) -> Type :=
 | type_cnstrs_nil : type_constructors Σ φ Γ []
 | type_cnstrs_cons id t n l :
     isType Σ φ Γ t ->
@@ -662,7 +662,7 @@ Inductive type_constructors (Σ : global_context) (φ : constraints) (Γ : conte
     type_constructors Σ φ Γ ((id, t, n) :: l).
 
 Inductive type_projections (Σ : global_context) (φ : constraints) (Γ : context) :
-  list (ident * term) -> Set :=
+  list (ident * term) -> Type :=
 | type_projs_nil : type_projections Σ φ Γ []
 | type_projs_cons id t l :
     isType Σ φ Γ t ->
@@ -680,7 +680,7 @@ Notation " Γ  ,,, Γ' " := (app_context Γ Γ') (at level 25, Γ' at next level
 Notation "#| Γ |" := (List.length Γ) (at level 0, Γ at level 99, format "#| Γ |").
 
 Inductive type_inddecls (Σ : global_context) (φ : constraints) (pars : context) (Γ : context) :
-  list inductive_body -> Set :=
+  list inductive_body -> Type :=
 | type_ind_nil : type_inddecls Σ φ pars Γ []
 | type_ind_cons na ty cstrs projs kelim l :
     (** Arity is well-formed *)
@@ -716,7 +716,7 @@ Definition type_global_decl Σ φ decl :=
   | InductiveDecl ind inds => type_inductive Σ φ inds.(ind_bodies)
   end.
 
-Inductive type_global_env φ : global_context -> Set :=
+Inductive type_global_env φ : global_context -> Type :=
 | globenv_nil : type_global_env φ []
 | globenv_decl Σ id d :
     type_global_env φ Σ ->
@@ -1141,4 +1141,4 @@ Proof.
   cbn. (* FIXME *)
 Admitted.
 
-Extract Constant typing_ind_env => "fun p -> raise Not_found".
+Extract Constant typing_ind_env => "fun p -> raise Not_found ".

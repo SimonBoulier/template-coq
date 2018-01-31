@@ -104,7 +104,11 @@ module type Quoter = sig
   type quoted_inductive
   type quoted_decl
   type quoted_program
+  type quoted_constraint_type
+  type quoted_univ_constraint
   type quoted_univ_instance
+  type quoted_univ_constraints
+  type quoted_univ_context
   type quoted_mind_params
   type quoted_ind_entry =
     quoted_ident * t * quoted_bool * quoted_ident list * t list
@@ -126,7 +130,11 @@ module type Quoter = sig
   val quote_cast_kind : Constr.cast_kind -> quoted_cast_kind
   val quote_kn : kernel_name -> quoted_kernel_name
   val quote_inductive : quoted_kernel_name * quoted_int -> quoted_inductive
+  val quote_constraint_type : Univ.constraint_type -> quoted_constraint_type
+  val quote_univ_constraint : Univ.univ_constraint -> quoted_univ_constraint
   val quote_univ_instance : Univ.Instance.t -> quoted_univ_instance
+  val quote_univ_constraints : Univ.Constraint.t -> quoted_univ_constraints
+  val quote_univ_context : Univ.UContext.t -> quoted_univ_context
 
   val quote_mind_params : (quoted_ident * (t,t) sum) list -> quoted_mind_params
   val quote_mind_finiteness : Decl_kinds.recursivity_kind -> quoted_mind_finiteness
@@ -160,15 +168,15 @@ module type Quoter = sig
   val mkCoFix : quoted_int * (quoted_name array * t array * t array) -> t
 
   val mkMutualInductive :
-    quoted_kernel_name -> quoted_int (* params *) ->
+    quoted_kernel_name -> quoted_univ_context -> quoted_int (* params *) ->
     (quoted_ident * t (* ind type *) * quoted_sort_family list *
        (quoted_ident * t (* constr type *) * quoted_int) list *
          (quoted_ident * t (* projection type *)) list) list ->
      quoted_decl
 
-  val mkConstant : quoted_kernel_name -> quoted_univ_instance ->
+  val mkConstant : quoted_kernel_name -> quoted_univ_context ->
                    t (* type *) -> t (* body *) -> quoted_decl
-  val mkAxiom : quoted_kernel_name -> quoted_univ_instance -> t -> quoted_decl
+  val mkAxiom : quoted_kernel_name -> quoted_univ_context -> t -> quoted_decl
 
   val mkExt : quoted_decl -> quoted_program -> quoted_program
   val mkIn : t -> quoted_program
@@ -187,7 +195,11 @@ struct
   type quoted_cast_kind = Term.constr  (* of type Ast.cast_kind *)
   type quoted_kernel_name = Term.constr (* of type Ast.kername *)
   type quoted_inductive = Term.constr (* of type Ast.inductive *)
-  type quoted_univ_instance = Term.constr (* of type Ast.universe_instance *)
+  type quoted_constraint_type = Term.constr (* of type univ.constraint_type *)
+  type quoted_univ_constraint = Term.constr (* of type univ.univ_constraint *)
+  type quoted_univ_constraints = Term.constr (* of type univ.constraints *)
+  type quoted_univ_instance = Term.constr (* of type univ.universe_instance *)
+  type quoted_univ_context = Term.constr (* of type univ.universe_context *)
   type quoted_proj = Term.constr (* of type Ast.projection *)
   type quoted_sort_family = Term.constr (* of type Ast.sort_family *)
 
@@ -209,8 +221,11 @@ struct
 
   let pkg_datatypes = ["Coq";"Init";"Datatypes"]
   let pkg_reify = ["Template";"Ast"]
+  let pkg_univ = ["Template";"kernel";"univ"]
   let pkg_level = ["Template";"kernel";"univ";"Level"]
   let pkg_string = ["Coq";"Strings";"String"]
+
+  let ext_pkg_univ s = List.append pkg_univ [s]
 
   let r_reify = resolve_symbol pkg_reify
 
@@ -246,8 +261,8 @@ struct
   let kNative = r_reify "NativeCast"
   let kCast = r_reify "Cast"
   let kRevertCast = r_reify "RevertCast"
-  let lProp = resolve_symbol pkg_level "prop"
-  let lSet = resolve_symbol pkg_level "set"
+  let lProp = resolve_symbol pkg_level "lProp"
+  let lSet = resolve_symbol pkg_level "lSet"
   let sfProp = r_reify "InProp"
   let sfSet = r_reify "InSet"
   let sfType = r_reify "InType"
@@ -265,6 +280,14 @@ struct
   let tlevel = resolve_symbol pkg_level "t"
   let tLevel = resolve_symbol pkg_level "Level"
   let tLevelVar = resolve_symbol pkg_level "Var"
+  let tunivLe = resolve_symbol pkg_univ "Le"
+  let tunivLt = resolve_symbol pkg_univ "Lt"
+  let tunivEq = resolve_symbol pkg_univ "Eq"
+  let tUContextmake = resolve_symbol (ext_pkg_univ "UContext") "make"
+  (* let tConstraintempty = resolve_symbol (ext_pkg_univ "Constraint") "empty" *)
+  let tConstraintempty = Universes.constr_of_global (Coqlib.find_reference "template coq bug" (ext_pkg_univ "Constraint") "empty")
+  let tConstraintadd = Universes.constr_of_global (Coqlib.find_reference "template coq bug" (ext_pkg_univ "Constraint") "add")
+  let tmake_univ_constraint = resolve_symbol pkg_univ "make_univ_constraint"
 
   let (tdef,tmkdef) = (r_reify "def", r_reify "mkdef")
   let (tLocalDef,tLocalAssum,tlocal_entry) = (r_reify "LocalDef", r_reify "LocalAssum", r_reify "local_entry")
@@ -400,6 +423,32 @@ struct
     let arr = Univ.Instance.to_array u in
     to_coq_list tlevel (CArray.map_to_list quote_level arr)
 
+  let quote_constraint_type (c : Univ.constraint_type) =
+    match c with
+    | Lt -> tunivLt
+    | Le -> tunivLe
+    | Eq -> tunivEq
+
+  let quote_univ_constraint ((l1, ct, l2) : Univ.univ_constraint) =
+    let l1 = quote_level l1 in
+    let l2 = quote_level l2 in
+    let ct = quote_constraint_type ct in
+    Term.mkApp (tmake_univ_constraint, [| l1; ct; l2 |])
+
+  let quote_univ_constraints const =
+    let const = Univ.Constraint.elements const in
+    List.fold_left (fun tm c ->
+        let c = quote_univ_constraint c in
+        Term.mkApp (tConstraintadd, [| c; tm|])
+      ) tConstraintempty const
+
+  let quote_univ_context uctx =
+    let inst = Univ.UContext.instance uctx in
+    let const = Univ.UContext.constraints uctx in
+    let inst' = quote_univ_instance inst in
+    let const' = quote_univ_constraints const in
+    Term.mkApp (tUContextmake, [|inst'; const'|])
+
 
   let quote_sort s =
     quote_universe (Sorts.univ_of_sort s)
@@ -486,20 +535,20 @@ struct
   let mkProj kn t =
     Term.mkApp (tProj, [| kn; t |])
 
-  let mkMutualInductive kn p ls =
+  let mkMutualInductive kn uctx p ls =
     let result = to_coq_list tinductive_body
          (List.map (fun (a,b,c,d,e) ->
               let c = to_coq_list tsort_family c in
               let d = mk_ctor_list d in
               let e = mk_proj_list e in
               Term.mkApp (tmkinductive_body, [| a; b; c; d; e |])) ls) in
-    Term.mkApp (pType, [| kn; p; result |])
+    Term.mkApp (pType, [| kn; uctx; p; result |])
 
-  let mkConstant kn u ty c =
-    Term.mkApp (pConstr, [| kn; u ; ty; c |])
+  let mkConstant kn uctx ty c =
+    Term.mkApp (pConstr, [| kn; uctx ; ty; c |])
 
-  let mkAxiom kn u t =
-    Term.mkApp (pAxiom, [| kn; u; t |])
+  let mkAxiom kn uctx t =
+    Term.mkApp (pAxiom, [| kn; uctx; t |])
 
   let mkExt x acc = Term.mkApp (x, [| acc |])
   let mkIn t = Term.mkApp (pIn, [| t |])
@@ -617,21 +666,17 @@ struct
     else t
 
   open Declarations
-  let abstract_inductive_instance iu =
+  let get_abstract_inductive_universes iu =
     match iu with
-    | Monomorphic_ind ctx -> Univ.Instance.empty
-    | Polymorphic_ind ctx ->
-       let ctx = Univ.instantiate_univ_context ctx in
-       Univ.UContext.instance ctx
+    | Monomorphic_ind ctx -> ctx (* FIXME is it ok ??? *)
+    | Polymorphic_ind ctx -> Univ.AUContext.repr ctx
     | Cumulative_ind cumi ->
        let cumi = Univ.instantiate_cumulativity_info cumi in
-       let ctx = Univ.CumulativityInfo.univ_context cumi in
-       Univ.UContext.instance ctx
-  let constant_instance = function
-    | Monomorphic_const _ -> Univ.Instance.empty
-    | Polymorphic_const ctx ->
-       let ctx = Univ.instantiate_univ_context ctx in
-       Univ.UContext.instance ctx
+       Univ.CumulativityInfo.univ_context cumi  (* FIXME check also *)
+
+  let get_constant_uctx = function
+    | Monomorphic_const ctx -> ctx
+    | Polymorphic_const ctx -> Univ.AUContext.repr ctx
 
   let quote_term_remember
       (add_constant : Names.kernel_name -> 'a -> 'a)
@@ -778,9 +823,10 @@ struct
       (Q.mkCoFix (a',decl'), acc)
     and quote_minductive_type (acc : 'a) env (t : Names.mutual_inductive) =
       let mib = Environ.lookup_mind t (snd env) in
-      let inst = abstract_inductive_instance mib.Declarations.mind_universes in
+      let uctx = get_abstract_inductive_universes mib.Declarations.mind_universes in
+      let inst = Univ.UContext.instance uctx in
       let indtys =
-        Array.to_list Declarations.(Array.map (fun oib ->
+        Declarations.(CArray.map_to_list (fun oib ->
            let ty = Inductive.type_of_inductive (snd env) ((mib,oib),inst) in
            (Context.Rel.Declaration.LocalAssum (Names.Name oib.mind_typename, ty))) mib.mind_packets)
       in
@@ -826,11 +872,18 @@ struct
 	  ([],acc) Declarations.((Array.to_list mib.mind_packets))
       in
       let params = Q.quote_int mib.Declarations.mind_nparams in
-      Q.mkMutualInductive ref_name params (List.rev ls), acc
+      let uctx = Q.quote_univ_context (get_abstract_inductive_universes mib.Declarations.mind_universes) in
+      Q.mkMutualInductive ref_name uctx params (List.rev ls), acc
     in ((fun acc env -> quote_term acc (false, env)),
         (fun acc env -> quote_minductive_type acc (false, env)))
 
   let quote_term env trm =
+    (try
+      let u = Sorts.univ_of_sort (Term.destSort trm) in
+      Feedback.msg_debug (Printer.pr_constr trm);
+      Feedback.msg_debug (Univ.Universe.pr u);
+    with
+    | _ -> ());
     let (fn,_) = quote_term_remember (fun _ () -> ()) (fun _ () -> ()) in
     fst (fn () env trm)
 
@@ -878,7 +931,7 @@ struct
 	      in
 	      constants := Q.mkConstant (Q.quote_kn kn) pu ty result :: !constants
 	    in
-            let inst = Q.quote_univ_instance (constant_instance cd.const_universes) in
+            let uctx = Q.quote_univ_context (get_constant_uctx cd.const_universes) in
             let ty, acc =
               let ty =
                 match cd.const_type with
@@ -892,11 +945,11 @@ struct
                  raise e)
             in
 	      match cd.const_body with
-		Undef _ -> constants := Q.mkAxiom (Q.quote_kn kn) inst ty :: !constants
+		Undef _ -> constants := Q.mkAxiom (Q.quote_kn kn) uctx ty :: !constants
 	      | Def cs ->
-		 do_body inst ty (Mod_subst.force_constr cs)
+		 do_body uctx ty (Mod_subst.force_constr cs)
 	      | OpaqueDef lc ->
-		 do_body inst ty (Opaqueproof.force_proof (Global.opaque_tables ()) lc)
+		 do_body uctx ty (Opaqueproof.force_proof (Global.opaque_tables ()) lc)
 	  end
     in
     let (quote_rem,quote_typ) =
@@ -1165,7 +1218,7 @@ struct
       | _ -> bad_term_verb trm "unquote_level"
     else if Term.eq_constr h tLevelVar then
       match args with
-      | l :: [] -> failwith "todo, I don't know how to create var level"
+      | l :: [] -> evd, Univ.Level.var (nat_to_int l)
       | _ -> bad_term_verb trm "unquote_level"
     else
       not_supported_verb trm "unquote_level"

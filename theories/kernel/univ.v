@@ -270,6 +270,10 @@ Definition universe := Universe.t.
 Inductive constraint_type := Lt | Le | Eq.
 Definition univ_constraint : Set := universe_level * constraint_type * universe_level.
 
+Definition make_univ_constraint : universe_level -> constraint_type -> universe_level -> univ_constraint
+  := fun x y z => (x, y, z).
+
+
 Require MSets.MSetWeakList.
 Module ConstraintTypeDec.
   Definition t := univ_constraint.
@@ -365,7 +369,8 @@ Definition in_punivs {A} (x : A) : puniverses A := (x, Instance.empty).
 Module UContext.
   Definition t := constrained Instance.t.
 
-  Definition make : constrained Instance.t -> t := fun x => x.
+  (* Definition make : constrained Instance.t -> t := fun x => x. *)
+  Definition make : Instance.t -> Constraint.t -> t := pair.
 
   Definition empty : t := (Instance.empty, Constraint.empty).
   (* val is_empty : t -> bool *)
