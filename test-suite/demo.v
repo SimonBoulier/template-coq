@@ -377,6 +377,6 @@ CoFixpoint ones : streamn := scons 1 ones.
 
 Quote Definition ones_syntax := Eval compute in ones.
 
-Make Definition ones' := ltac:(let t:= eval compute in ones_syntax in exact t).
+Make Definition ones' := Eval compute in ones_syntax.
 
 Check eq_refl : ones = ones'.

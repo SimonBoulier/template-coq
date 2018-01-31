@@ -1739,6 +1739,20 @@ VERNAC COMMAND EXTEND Unquote_vernac CLASSIFIED AS SIDEFF
         () ]
 END;;
 
+VERNAC COMMAND EXTEND Unquote_vernac_red CLASSIFIED AS SIDEFF
+    | [ "Make" "Definition" ident(name) ":=" "Eval" red_expr(rd) "in" constr(def) ] ->
+      [ check_inside_section () ;
+	let (evm, env) = Lemmas.get_current_context () in
+	let (trm, uctx) = Constrintern.interp_constr env evm def in
+        let evm = Evd.from_ctx uctx in
+        let (evm,rd) = Tacinterp.interp_redexp env evm rd in
+	let (evm,trm) = reduce_all env evm ~red:rd trm in
+        let evdref = ref evm in
+	let trm = Denote.denote_term evdref trm in
+	let _ = Declare.declare_definition ~kind:Decl_kinds.Definition name (trm, Evd.universe_context_set !evdref) in
+        () ]
+END;;
+
 VERNAC COMMAND EXTEND Unquote_inductive CLASSIFIED AS SIDEFF
     | [ "Make" "Inductive" constr(def) ] ->
       [ check_inside_section () ;
