@@ -17,19 +17,20 @@ module TemplateASTQuoter =
 struct
   type t = term
   type quoted_ident = char list
+  type quoted_int = Datatypes.nat
+  type quoted_bool = bool
   type quoted_name = name
   type quoted_sort = Univ0.universe
-  type quoted_sort_family = sort_family
   type quoted_cast_kind = cast_kind
   type quoted_kernel_name = char list
   type quoted_inductive = inductive
   type quoted_decl = global_decl
   type quoted_program = program
-  type quoted_int = Datatypes.nat
-  type quoted_bool = bool
-  type quoted_proj = projection
-
-  type quoted_univ_instance = Univ0.universe_level list
+  type quoted_constraint_type = Univ0.constraint_type
+  type quoted_univ_constraint = Univ0.univ_constraint
+  type quoted_univ_instance = Univ0.Instance.t
+  type quoted_univ_constraints = Univ0.constraints
+  type quoted_univ_context = Univ0.universe_context
   type quoted_mind_params = (ident * local_entry) list
   type quoted_ind_entry =
     quoted_ident * t * quoted_bool * quoted_ident list * t list
@@ -37,6 +38,8 @@ struct
   type quoted_mind_entry = mutual_inductive_entry
   type quoted_mind_finiteness = recursivity_kind
   type quoted_entry = (constant_entry, quoted_mind_entry) sum option
+  type quoted_proj = projection
+  type quoted_sort_family = sort_family
 
   open Names
 
@@ -112,6 +115,25 @@ struct
   let mkConstruct (ind, i) u = Coq_tConstruct (ind, i, u)
   let mkLetIn na b t t' = Coq_tLetIn (na,b,t,t')
 
+  let quote_constraint_type = function
+    | Univ.Lt -> Univ0.Lt
+    | Univ.Le -> Univ0.Le
+    | Univ.Eq -> Univ0.Eq
+
+  let quote_univ_constraint ((l, ct, l') : Univ.univ_constraint) : quoted_univ_constraint =
+    ((quote_level l, quote_constraint_type ct), quote_level l')
+
+  let quote_univ_instance (i : Univ.Instance.t) : quoted_univ_instance =
+    CArray.map_to_list quote_level (Univ.Instance.to_array i)
+
+  let quote_univ_constraints (c : Univ.Constraint.t) : quoted_univ_constraints =
+    List.map quote_univ_constraint (Univ.Constraint.elements c)
+
+  let quote_univ_context (uctx : Univ.UContext.t) : quoted_univ_context =
+    let levels = Univ.UContext.instance uctx  in
+    let constraints = Univ.UContext.constraints uctx in
+    (quote_univ_instance levels, quote_univ_constraints constraints)
+
   let rec seq f t =
     if f < t then
       f :: seq (f + 1) t
@@ -145,7 +167,7 @@ struct
     Coq_tCase (info,p,c,branches)
   let mkProj p c = Coq_tProj (p,c)
 
-  let mkMutualInductive kn p r =
+  let mkMutualInductive kn uctx p r =
     (* FIXME: This is a quite dummy rearrangement *)
     let r =
       List.map (fun (i,t,kelim,r,p) ->
@@ -154,7 +176,7 @@ struct
             ind_type = t;
             ind_kelim = kelim;
             ind_ctors = ctors; ind_projs = p }) r in
-    InductiveDecl (kn, {ind_npars = p; ind_bodies = r})
+    InductiveDecl (kn, {ind_npars = p; ind_bodies = r; ind_universes = uctx})
 
   let mkConstant kn u ty body =
     ConstantDecl (kn, { cst_universes = u;

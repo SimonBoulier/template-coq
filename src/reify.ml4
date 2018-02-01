@@ -40,25 +40,6 @@ let is_cast_prop () = !cast_prop
 
 open Pp (* this adds the ++ to the current scope *)
 
-exception NotSupported of Term.constr * string
-
-let not_supported trm =
-  (* Feedback.msg_error (str "Not Supported:" ++ spc () ++ Printer.pr_constr trm) ; *)
-  CErrors.user_err (str "Not Supported:" ++ spc () ++ Printer.pr_constr trm)
-
-let not_supported_verb trm rs =
-  CErrors.user_err (str "Not Supported raised at " ++ str rs ++ str ":" ++ spc () ++ Printer.pr_constr trm)
-
-let bad_term trm =
-  raise (NotSupported (trm, "bad term"))
-
-let bad_term_verb trm rs =
-  raise (NotSupported (trm, "bad term because of " ^ rs))
-
-let gen_constant_in_modules locstr dirs s =
-  Universes.constr_of_global (Coqlib.gen_reference_in_modules locstr dirs s)
-
-let opt_hnf_ctor_types = ref false
 let opt_debug = ref false
 
 let debug (m : unit -> Pp.std_ppcmds) =
@@ -66,6 +47,26 @@ let debug (m : unit -> Pp.std_ppcmds) =
     Feedback.(msg_debug (m ()))
   else
     ()
+
+exception NotSupported of Term.constr * string
+
+let not_supported trm =
+  CErrors.user_err (str "Not Supported:" ++ spc () ++ Printer.pr_constr trm)
+
+let not_supported_verb trm rs =
+  CErrors.user_err (str "Not Supported raised at " ++ str rs ++ str ":" ++ spc () ++ Printer.pr_constr trm)
+
+let bad_term trm =
+  CErrors.user_err (str "Bad term:" ++ spc () ++ Printer.pr_constr trm)
+
+let bad_term_verb trm rs =
+  CErrors.user_err (str "Bad term:" ++ spc () ++ Printer.pr_constr trm
+                    ++ spc () ++ str " Error: " ++ str rs)
+
+let gen_constant_in_modules locstr dirs s =
+  Universes.constr_of_global (Coqlib.gen_reference_in_modules locstr dirs s)
+
+let opt_hnf_ctor_types = ref false
 
 let hnf_type env ty =
   let rec hnf_type continue ty =
@@ -1567,8 +1568,8 @@ struct
              let t = TermReify.quote_mind_decl env (fst ni) in
              let _, args = Term.destApp t in
              (match args with
-              | [|name; n; inds|] ->
-                 let decl = Term.mkApp (tBuild_minductive_decl, [|n ; inds|]) in
+              | [|name; uctx ; n; inds|] ->
+                 let decl = Term.mkApp (tBuild_minductive_decl, [|n ; inds ; uctx|]) in
                  k (evm, decl)
               | _ -> bad_term_verb t "anomaly in quoting of inductive types")
                (* quote_mut_ind produce an entry rather than a decl *)

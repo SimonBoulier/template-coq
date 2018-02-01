@@ -6,7 +6,7 @@ Require Import ExtrOcamlZInt.
 
 Set Extraction Optimize.
 
-Extraction Blacklist univ Ast String List Nat Typing.
+Extraction Blacklist uGraph univ Ast String List Nat Typing.
 
 Set Warnings "-extraction-opaque-accessed".
 

@@ -15,7 +15,7 @@ Fixpoint insert {A} `{ComparableType A} (x : A) (l : list A) :=
                end
   end.
 
-Definition union {A} `{ComparableType A} (l l' : list A) : list A
+Definition list_union {A} `{ComparableType A} (l l' : list A) : list A
   := fold_left (fun l' x => insert x l') l l'.
 
 (* FIXME *)

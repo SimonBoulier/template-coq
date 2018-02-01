@@ -136,16 +136,16 @@ Proof.
   - elim (Nat.ltb_spec n #|Γ|); intuition.
     admit (* Need induction with IHs for environments *).
   - intuition auto.
-    + eapply H2. constructor; auto.
+    + eapply H0. constructor; auto.
       red. now exists s1. 
-  - intuition; eapply H2; constructor; auto.
+  - intuition; eapply H0; constructor; auto.
     now exists s1. now exists s1. 
-  - intuition; try eapply H4; try constructor; auto.
+  - intuition; try eapply H1; try constructor; auto.
   - (* typing spine ind *) admit.
   - admit. (* easy now *)
   - admit.
   - admit.
-  - specialize (H5 H9).
+  - specialize (H4 H7).
     intuition auto. admit. admit. 
   - (* proj *) admit.
   - admit.
@@ -163,7 +163,7 @@ Proof.
   constructor. now auto with arith.
 Qed.
 
-Lemma weakening_rec Σ φ Γ Γ' Γ'' :
+Lemma weakening_rec Σ φ Γ Γ' Γ'' (t : term) :
   type_global_env φ Σ -> type_local_env Σ φ (Γ ,,, Γ') ->
   type_local_env Σ φ (Γ ,,, Γ'' ,,, lift_context #|Γ''| 0 Γ') ->
   `(Σ ;;; φ ;;; Γ ,,, Γ' |- t : T ->
@@ -236,18 +236,18 @@ Admitted.
 Lemma type_local_env_app Σ φ (Γ Γ' : context) : type_local_env Σ φ (Γ ,,, Γ') -> type_local_env Σ φ Γ.
 Admitted.
 
-Lemma weakening Σ φ Γ Γ' :
+Lemma weakening Σ φ Γ Γ' (t : term) :
   type_global_env φ Σ -> type_local_env Σ φ (Γ ,,, Γ') ->
   `(Σ ;;; φ ;;; Γ |- t : T ->
     Σ ;;; φ ;;; Γ ,,, Γ' |- lift0 #|Γ'| t : lift0 #|Γ'| T).
 Proof.
   intros HΣ HΓΓ' * H.
-  pose (weakening_rec Σ φ Γ [] Γ').
+  pose (weakening_rec Σ φ Γ [] Γ' t).
   forward t0; eauto.
   forward t0; eauto. now eapply type_local_env_app in HΓΓ'. 
 Qed.
 
-Lemma substitution Σ φ Γ n u U :
+Lemma substitution Σ φ Γ n u U (t : term) :
   type_global_env φ Σ -> type_local_env Σ φ Γ ->
   `(Σ ;;; φ ;;; Γ ,, vass n U |- t : T -> Σ ;;; φ ;;; Γ |- u : U ->
     Σ ;;; φ ;;; Γ |- t {0 := u} : T {0 := u}).

@@ -51,8 +51,8 @@ Fixpoint extract_mind_decl_from_program (id : ident) (p : program)
   : option minductive_decl
   := match p with
      | PConstr _ _ _ _ p => extract_mind_decl_from_program id p
-     | PType id' n inds p => if string_dec id id' then
-                              Some (Build_minductive_decl n inds)
+     | PType id' uctx n inds p => if string_dec id id' then
+                              Some (Build_minductive_decl n inds uctx)
                             else extract_mind_decl_from_program id p
      | PAxiom _ _ _ p => extract_mind_decl_from_program id p
      | PIn _ => None

@@ -4,13 +4,13 @@
     should use these same directives for consistency.
 *)
 
-From Template Require univ Ast.
+From Template Require univ uGraph Ast.
 
 Require Import FSets.
 Require Import ExtrOcamlBasic.
 Require Import ExtrOcamlString ExtrOcamlZInt.
 
-Extraction Blacklist univ Ast String List Nat.
+Extraction Blacklist uGraph univ Ast String List Nat.
 
 Set Warnings "-extraction-opaque-accessed".
 Extraction Library List.
@@ -35,5 +35,6 @@ Extraction Library MSetWeakList.
 Extraction Library FSetWeakList.
 Extraction Library FMapWeakList.
 Extraction Library monad_utils.
-Extraction Library Ast.
 Extraction Library univ.
+Extraction Library uGraph.
+Extraction Library Ast.

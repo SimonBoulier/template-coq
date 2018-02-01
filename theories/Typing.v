@@ -269,120 +269,6 @@ End Forallb2.
 
 
 
-Section UGraph.
-  Variable (φ : constraints).
-
-  (* TODO use nat where Z is not useful or BinNat *)
-  Local Open Scope Z.
-
-  Definition edge : Set := Level.t * Z * Level.t.
-
-  (* FIXME duplicates *)
-  Definition edges : list edge
-    := Constraint.fold (fun '((l, ct),l') E =>
-                          match ct with
-                          | Lt => (l,-1,l') :: E
-                          | Le => (l,0,l') :: E
-                          | Eq => (l,0,l') :: (l',0,l) :: E
-                          end)
-                       φ [].
-
-  Definition pred_graph := LevelMap.t (Level.t * Z).
-
-  Definition Zinfty := (Z.pow 2 6)%Z.  (* FIXME bigger at least *)
-
-  Definition add_node l := LevelMap.add l (Level.Level "nil", Zinfty).
-
-  Definition init_pred_graph : pred_graph :=
-    Constraint.fold (fun '((l, _), l') s => add_node l (add_node l' s))
-                    φ (LevelMap.empty _).
-
-  Definition relax (G : pred_graph) (e : edge) : pred_graph :=
-    let '((u, w), v) := e in
-    match LevelMap.find u G, LevelMap.find v G with
-    | Some (_, ud), Some (_, vd)
-      => if Z.gtb vd (ud + w) then
-          LevelMap.add v (u, ud + w) G
-        else G
-    | _, _ => G
-    end.
-
-  Definition BellmanFord (G : pred_graph) (s : Level.t) : pred_graph :=
-    let G' := LevelMap.add s (Level.Level "nil", Z0) G in
-    let G' := LevelMap.fold (fun _ _ => fold_left relax edges) G G' in
-    G'.
-
-  (* true if there is a negative cycle *)
-  Definition detect_negative_cycle (G : pred_graph) : bool
-    := existsb (fun '((u,w),v) =>
-                  match LevelMap.find u G, LevelMap.find v G with
-                  | Some (_, ud), Some (_, vd)
-                    => Z.gtb vd (ud + w)
-                  | _, _ => false
-                  end) edges.
-
-  (* If enforce l1 l2 = Some n, the graph enforce that l2 is at least l1 + n *)
-  (* i.e. l1 + n <= l2 *)
-  (* If None nothing is enforced by the graph between those two levels *)
-  Definition enforce (u v : Level.t) : option Z :=
-    let G := BellmanFord init_pred_graph u in
-    match LevelMap.find v G with
-    | Some (_, vd) => Some (Z.opp vd)
-    | None => None
-    end.
-
-  Definition check_le_level_expr (e1 e2 : Universe.Expr.t) : bool :=
-    match e1, e2 with
-    | (l1, false), (l2, false)
-    | (l1, true), (l2, true) => match enforce l1 l2 with
-                               | Some k => Z.geb k 0
-                               | _ => false
-                               end
-    | (l1, true), (l2, false) => match enforce l1 l2 with
-                               | Some k => Z.geb k 1
-                               | _ => false
-                               end
-    | (l1, false), (l2, true) => match enforce l1 l2 with
-                               | Some k => Z.geb k (-1)
-                               | _ => false
-                               end
-    end.
-
-  Definition check_lt_level_expr (e1 e2 : Universe.Expr.t) : bool :=
-    match e1, e2 with
-    | (l1, false), (l2, false)
-    | (l1, true), (l2, true) => match enforce l1 l2 with
-                               | Some k => Z.geb k 1
-                               | _ => false
-                               end
-    | (l1, true), (l2, false) => match enforce l1 l2 with
-                               | Some k => Z.geb k 1
-                               | _ => false
-                               end
-    | (l1, false), (l2, true) => match enforce l1 l2 with
-                               | Some k => Z.geb k 0
-                               | _ => false
-                               end
-    end.
-
-  Definition check_eq_level_expr (e1 e2 : Universe.Expr.t) : bool :=
-    check_le_level_expr e1 e2 && check_le_level_expr e2 e1.
-
-  Definition exists_bigger_or_eq (e1 : Universe.Expr.t) (u2 : Universe.t) : bool :=
-    Universe.existsb (check_le_level_expr e1) u2.
-
-  Definition exists_strictly_bigger (e1 : Universe.Expr.t) (u2 : Universe.t) : bool :=
-    Universe.existsb (check_lt_level_expr e1) u2.
-
-  Definition check_leq (u1 u2 : Universe.t) : bool :=
-    Universe.for_all (fun e => exists_bigger_or_eq e u2) u1.
-
-  Definition check_lt (u1 u2 : Universe.t) : bool :=
-    Universe.for_all (fun e => exists_strictly_bigger e u2) u1.
-End UGraph.
-
-
-
 Definition eq_string s s' :=
   if string_dec s s' then true else false.
 
@@ -431,7 +317,7 @@ Fixpoint eq_term (t u : term) {struct t} :=
   | _, _ => false
   end.
 
-Fixpoint leq_term (φ : constraints) (t u : term) {struct t} :=
+Fixpoint leq_term (φ : uGraph.t) (t u : term) {struct t} :=
   match t, u with
   | tRel n, tRel n' => eq_nat n n'
   | tMeta n, tMeta n' => eq_nat n n'
@@ -517,7 +403,7 @@ Reserved Notation " Σ ;;; φ ;;; Γ |- t : T " (at level 50, φ, Γ, t, T at ne
 Reserved Notation " Σ ;;; φ ;;; Γ |- t <= u " (at level 50, φ, Γ, t, u at next level).
 
 
-Inductive cumul (Σ : global_context) (φ : constraints) (Γ : context) : term -> term -> Prop :=
+Inductive cumul (Σ : global_context) (φ : uGraph.t) (Γ : context) : term -> term -> Prop :=
 | cumul_refl t u : leq_term φ t u = true -> Σ ;;; φ ;;; Γ |- t <= u
 | cumul_red_l t u v : red1 Σ Γ t v -> Σ ;;; φ ;;; Γ |- v <= u -> Σ ;;; φ ;;; Γ |- t <= u
 | cumul_red_r t u v : Σ ;;; φ ;;; Γ |- t <= v -> red1 Σ Γ u v -> Σ ;;; φ ;;; Γ |- t <= u
@@ -543,7 +429,7 @@ Conjecture congr_cumul_prod : forall Σ φ Γ na na' M1 M2 N1 N2,
 
 Record squash (A : Type) : Prop := { _ : A }.
 
-Inductive typing (Σ : global_context) (φ : constraints) (Γ : context) : term -> term -> Type :=
+Inductive typing (Σ : global_context) (φ : uGraph.t) (Γ : context) : term -> term -> Type :=
 | type_Rel n : forall (isdecl : n < List.length Γ),
     Σ ;;; φ ;;; Γ |- (tRel n) : lift0 (S n) (safe_nth Γ (exist _ n isdecl)).(decl_type)
 
@@ -627,7 +513,7 @@ Inductive typing (Σ : global_context) (φ : constraints) (Γ : context) : term 
 
 where " Σ ;;; φ ;;; Γ |- t : T " := (@typing Σ φ Γ t T) : type_scope
 
-with typing_spine (Σ : global_context) (φ : constraints) (Γ : context) : term -> list term -> term -> Prop :=
+with typing_spine (Σ : global_context) (φ : uGraph.t) (Γ : context) : term -> list term -> term -> Prop :=
 | type_spine_nil ty : typing_spine Σ φ Γ ty [] ty
 | type_spine_const hd tl na A B B' :
     Σ ;;; φ ;;; Γ |- hd : A ->
@@ -635,24 +521,25 @@ with typing_spine (Σ : global_context) (φ : constraints) (Γ : context) : term
     typing_spine Σ φ Γ (tProd na A B) (cons hd tl) B'.
 
 
-Fixpoint decompose_program (p : program) (env : global_context) : global_context * term :=
+
+Fixpoint decompose_program (p : program) (env : uGraph.t * global_context) : uGraph.t * global_context * term :=
   match p with (* TODO Universes *)
   | PConstr s u ty trm p =>
     let decl :=  {| cst_universes := u; cst_type := ty; cst_body := Some trm |} in
-    decompose_program p (ConstantDecl s decl :: env)
+    decompose_program p (add_constraints u (fst env), ConstantDecl s decl :: snd env)
   | PAxiom s u ty p =>
     let decl := {| cst_universes := u; cst_type := ty; cst_body := None |} in
-    decompose_program p (ConstantDecl s decl :: env)
+    decompose_program p (add_constraints u (fst env), ConstantDecl s decl :: snd env)
   | PType ind u m inds p =>
     let decl := {| ind_npars := m; ind_bodies := inds; ind_universes := u |} in
-    decompose_program p (InductiveDecl ind decl :: env)
+    decompose_program p (add_constraints u (fst env), InductiveDecl ind decl :: snd env)
   | PIn t => (env, t)
   end.
 
-Definition isType (Σ : global_context) (φ : constraints) (Γ : context) (t : term) :=
+Definition isType (Σ : global_context) (φ : uGraph.t) (Γ : context) (t : term) :=
   { s : _ & Σ ;;; φ ;;; Γ |- t : tSort s }.
 
-Inductive type_constructors (Σ : global_context) (φ : constraints) (Γ : context) :
+Inductive type_constructors (Σ : global_context) (φ : uGraph.t) (Γ : context) :
   list (ident * term * nat) -> Type :=
 | type_cnstrs_nil : type_constructors Σ φ Γ []
 | type_cnstrs_cons id t n l :
@@ -661,7 +548,7 @@ Inductive type_constructors (Σ : global_context) (φ : constraints) (Γ : conte
     (** TODO: check it has n products ending in a tRel application *)              
     type_constructors Σ φ Γ ((id, t, n) :: l).
 
-Inductive type_projections (Σ : global_context) (φ : constraints) (Γ : context) :
+Inductive type_projections (Σ : global_context) (φ : uGraph.t) (Γ : context) :
   list (ident * term) -> Type :=
 | type_projs_nil : type_projections Σ φ Γ []
 | type_projs_cons id t l :
@@ -679,7 +566,7 @@ Definition app_context (Γ Γ' : context) : context := (Γ' ++ Γ)%list.
 Notation " Γ  ,,, Γ' " := (app_context Γ Γ') (at level 25, Γ' at next level, left associativity).
 Notation "#| Γ |" := (List.length Γ) (at level 0, Γ at level 99, format "#| Γ |").
 
-Inductive type_inddecls (Σ : global_context) (φ : constraints) (pars : context) (Γ : context) :
+Inductive type_inddecls (Σ : global_context) (φ : uGraph.t) (pars : context) (Γ : context) :
   list inductive_body -> Type :=
 | type_ind_nil : type_inddecls Σ φ pars Γ []
 | type_ind_cons na ty cstrs projs kelim l :
@@ -736,15 +623,16 @@ Definition type_local_decl Σ φ Γ d :=
 (*   | d :: Σ => *)
 (*     match d with *)
 (*     | ConstantDecl id d => fresh_global id Σ /\ type_global_env  *)
-Inductive type_local_env (Σ : global_context) (φ : constraints) : context -> Prop :=
+Inductive type_local_env (Σ : global_context) (φ : uGraph.t) : context -> Prop :=
 | localenv_nil : type_local_env Σ φ []
 | localenv_cons Γ d :
     type_local_env Σ φ Γ ->
     type_local_decl Σ φ Γ d ->
     type_local_env Σ φ (Γ ,, d).
 
-Definition type_program (φ : constraints) (p : program) (ty : term) : Prop :=
-  let '(Σ, t) := decompose_program p [] in
+
+Definition type_program (p : program) (ty : term) : Prop :=
+  let '((φ, Σ), t) := decompose_program p (uGraph.init_graph, []) in
   squash (Σ ;;; φ ;;; [] |- t : ty).
 
 Quote Recursively Definition foo := 0.
@@ -765,7 +653,7 @@ Ltac construct :=
 
 Quote Definition natr := nat.
 
-Goal type_program Constraint.empty foo natr.
+Goal type_program foo natr.
 Proof.
   red.
   simpl. constructor.
@@ -774,7 +662,7 @@ Proof.
 Qed.
 
 Quote Recursively Definition foo' := 1.
-Goal type_program Constraint.empty foo' natr.
+Goal type_program foo' natr.
 Proof.
   red.
   simpl. constructor.
@@ -891,13 +779,13 @@ Proof.
   constructor. apply term_env_ind; auto. apply IHl.
 Qed.
 
-Inductive Forall (A : Set) (P : A -> Set) : list A -> Set :=
+Inductive Forall (A : Set) (P : A -> Type) : list A -> Type :=
     Forall_nil : Forall A P []
   | Forall_cons : forall (x : A) (l : list A),
                   P x -> Forall A P l -> Forall A P (x :: l).
 Arguments Forall {A} P l.
 
-Definition on_decl_typing (P : term -> term -> Set) d :=
+Definition on_decl_typing (P : term -> term -> Type) d :=
   match d with
   | ConstantDecl id cst =>
     match cst.(cst_body) with
@@ -908,7 +796,7 @@ Definition on_decl_typing (P : term -> term -> Set) d :=
     Forall (fun ind => forall s, P ind.(ind_type) s) ind.(ind_bodies)
   end.
 
-Inductive Forall_decls_typing φ (P : global_context -> term -> term -> Set) : global_context -> Set :=
+Inductive Forall_decls_typing φ (P : global_context -> term -> term -> Type) : global_context -> Type :=
 | Forall_decls_typing_nil : Forall_decls_typing φ P nil
 | Forall_decls_typing_cons Σ d :
     Forall_decls_typing φ P Σ ->
@@ -969,7 +857,21 @@ Require Import Wf.
 Require Import Wellfounded Relation_Definitions.
 Require Import Relation_Operators Lexicographic_Product Wf_nat.
 Arguments lexprod [A B].
-Notation wf := type_global_env.
+
+Definition contains_init_graph φ :=
+  LevelSet.In Level.prop (fst φ) /\ LevelSet.In Level.set (fst φ) /\
+  Constraint.In (Level.prop, Le, Level.set) (snd φ).
+
+Definition wf_graph φ :=
+  contains_init_graph φ /\ (no_universe_inconsistency φ = true).
+
+Definition wf φ Σ : Type :=
+  wf_graph φ * type_global_env φ Σ.
+
+(* FIXME we even have Prop : Set ... *)
+Conjecture wf_graph_prop_set : forall φ (H : wf_graph φ),
+    check_lt φ Universe.type0m Universe.type1 = true /\
+    check_lt φ Universe.type0 Universe.type1 = true.
 
 Definition env_prop (P : forall Σ φ Γ t T, Set) :=
   forall Σ φ (wfΣ : wf φ Σ) Γ t T, Σ ;;; φ ;;; Γ |- t : T ->
@@ -981,20 +883,19 @@ Lemma env_prop_typing P : env_prop P ->
     Σ;;; φ ;;; Γ |- t : T -> P Σ φ Γ t T.
 Proof. intros. now apply X. Qed.
 
-(* Lemma env_prop_sigma P : env_prop P -> *)
-(*   forall Σ φ (wf : wf φ Σ), *)
-(*     Forall_decls_typing φ (fun (Σ0 : global_context) (t0 ty : term) => P Σ0 φ [] t0 ty) Σ. *)
-(* Proof. intros. eapply X. apply wf. apply (type_Sort Σ φ [] Universe.type0). *)
-(*        Unshelve. 2: exact (Universe.type1). *)
-(*        cbn. *)
-(* Admitted. (* FIXME add that φ is without universe inconsistency *) *)
+Lemma env_prop_sigma P : env_prop P ->
+  forall Σ φ (wf : wf φ Σ),
+    Forall_decls_typing φ (fun (Σ0 : global_context) (t0 ty : term) => P Σ0 φ [] t0 ty) Σ.
+Proof. intros. eapply X. apply wf0. apply (type_Sort Σ φ [] Universe.type0).
+       eapply wf_graph_prop_set. eapply wf0.
+Defined.
 
 (** An induction principle ensuring the Σ declarations enjoy the same properties. *)
 
 (*   TODO: thread the property on local contexts as well, avoiding to redo work at binding constructs. *)
 (*  *)
 Lemma typing_ind_env :
-  forall (P : global_context -> constraints -> context -> term -> term -> Set),
+  forall (P : global_context -> uGraph.t -> context -> term -> term -> Set),
     (forall Σ φ (wfΣ : wf φ Σ) (Γ : context) (n : nat) (isdecl : n < #|Γ|),
         P Σ φ Γ (tRel n)
           (lift0 (S n) (decl_type (safe_nth Γ (exist (fun n0 : nat => n0 < #|Γ|) n isdecl))))) ->
@@ -1089,56 +990,56 @@ Proof.
   constructor.
   inversion_clear wfΣ.
   constructor.
-  refine (let IH' := IH (existT _ Σ (existT _ φ (existT _ H0 (existT _ Γ (existT _ (tSort Universe.type0m ) (existT _ (tSort Universe.type1) (type_Sort _ _ _ Universe.type0m Universe.type1 _))))))) in _).
-  simpl in IH'. forward IH'. constructor 1. simpl. omega.
-  apply IH'.
-  destruct g; simpl.
-  destruct cst_body.
-  simpl.
-  intros.
-  specialize (IH (existT _ Σ (existT _ φ (existT _ H0 (existT _ _ (existT _ _ (existT _ _ H3))))))).
-  simpl in IH.
-  forward IH. constructor 1. simpl; omega.
-  apply IH.
-  intros.
-  specialize (IH (existT _ Σ (existT _ φ (existT _ H0 (existT _ _ (existT _ _ (existT _ _ H3))))))).
-  simpl in IH.
-  forward IH. constructor 1. simpl; omega.
-  apply IH.
-  intros.
-  induction (ind_bodies m). constructor.
-  constructor; auto.
-  intros.
-  specialize (IH (existT _ Σ (existT _ φ (existT _ H0 (existT _ _ (existT _ _ (existT _ _ H3))))))).
-  simpl in IH.
-  forward IH. constructor 1. simpl; omega.
-  apply IH.
+  (* refine (let IH' := IH (existT _ Σ (existT _ φ (existT _ (H0, X14) (existT _ Γ (existT _ (tSort Universe.type0m ) (existT _ (tSort Universe.type1) (type_Sort _ _ _ Universe.type0m Universe.type1 _))))))) in _). *)
+  (* simpl in IH'. forward IH'. constructor 1. simpl. omega. *)
+  (* apply IH'. *)
+  (* destruct g; simpl. *)
+  (* destruct cst_body. *)
+  (* simpl. *)
+  (* intros. *)
+  (* specialize (IH (existT _ Σ (existT _ φ (existT _ X14 (existT _ _ (existT _ _ (existT _ _ X16))))))). *)
+  (* simpl in IH. *)
+  (* forward IH. constructor 1. simpl; omega. *)
+  (* apply IH. *)
+  (* intros. *)
+  (* specialize (IH (existT _ Σ (existT _ φ (existT _ X14 (existT _ _ (existT _ _ (existT _ _ X16))))))). *)
+  (* simpl in IH. *)
+  (* forward IH. constructor 1. simpl; omega. *)
+  (* apply IH. *)
+  (* intros. *)
+  (* induction (ind_bodies m). constructor. *)
+  (* constructor; auto. *)
+  (* intros. *)
+  (* specialize (IH (existT _ Σ (existT _ φ (existT _ X14 (existT _ _ (existT _ _ (existT _ _ X16))))))). *)
+  (* simpl in IH. *)
+  (* forward IH. constructor 1. simpl; omega. *)
+  (* apply IH. *)
 
-  assert (forall Γ t T (Hty : Σ ;;; φ ;;; Γ |- t : T),
-             typing_size Hty <
-             typing_size H ->
-             Forall_decls_typing φ (fun (Σ : global_context) (t ty : term) => P Σ φ [] t ty) Σ *
-             P Σ φ Γ t T).
-  intros.
-  specialize (IH (existT _ Σ (existT _ φ (existT _ wfΣ (existT _ _ (existT _ _ (existT _ _ Hty))))))).
-  simpl in IH.
-  forward IH.
-  constructor 2. simpl. apply H0.
-  apply IH. clear IH.
-  destruct H;
-  match reverse goal with
-    H : _ |- _ => eapply H
-  end; eauto;
-    try solve [unshelve eapply H0; simpl; auto with arith].
-  unshelve eapply H0; simpl; auto with arith.
-  rewrite Nat.max_comm, <- Nat.max_assoc. auto with arith.
-  unshelve eapply H0; simpl; auto with arith.
-  setoid_rewrite Nat.max_comm at 2.
-  rewrite Nat.max_comm, <- Nat.max_assoc. auto with arith.
-  simpl in H0. refine (let H0' := H0 [] _ _ (type_Sort _ _ _ Universe.type0m Universe.type1 _) in _).
-  simpl in H0'. forward H0'; auto. apply H0'.
-  Unshelve.
-  cbn. (* FIXME *)
+  (* assert (forall Γ t T (Hty : Σ ;;; φ ;;; Γ |- t : T), *)
+  (*            typing_size Hty < *)
+  (*            typing_size H -> *)
+  (*            Forall_decls_typing φ (fun (Σ : global_context) (t ty : term) => P Σ φ [] t ty) Σ * *)
+  (*            P Σ φ Γ t T). *)
+  (* intros. *)
+  (* specialize (IH (existT _ Σ (existT _ φ (existT _ wfΣ (existT _ _ (existT _ _ (existT _ _ Hty))))))). *)
+  (* simpl in IH. *)
+  (* forward IH. *)
+  (* constructor 2. simpl. apply H0. *)
+  (* apply IH. clear IH. *)
+  (* destruct H; *)
+  (* match reverse goal with *)
+  (*   H : _ |- _ => eapply H *)
+  (* end; eauto; *)
+  (*   try solve [unshelve eapply X14; simpl; auto with arith]. *)
+  (* unshelve eapply X14; simpl; auto with arith. *)
+  (* rewrite Nat.max_comm, <- Nat.max_assoc. auto with arith. *)
+  (* unshelve eapply X14; simpl; auto with arith. *)
+  (* setoid_rewrite Nat.max_comm at 2. *)
+  (* rewrite Nat.max_comm, <- Nat.max_assoc. auto with arith. *)
+  (* simpl in X14. refine (let H0' := X14 [] _ _ (type_Sort _ _ _ Universe.type0m Universe.type1 _) in _). *)
+  (* simpl in H0'. forward H0'; auto. apply H0'. *)
+  (* Unshelve. *)
+  (* cbn. (* FIXME *) *)
 Admitted.
 
 Extract Constant typing_ind_env => "fun p -> raise Not_found ".

@@ -21,6 +21,7 @@ MSetWeakList
 FSetWeakList
 FMapWeakList
 Univ0
+UGraph0
 Ast0
 Template_coq
 Template_coq_mod

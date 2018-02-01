@@ -173,7 +173,7 @@ Definition isConstruct c :=
 
 Inductive conv_pb :=
 | Conv
-| Cumul (φ : constraints).
+| Cumul (φ : uGraph.t).
 
 Section Conversion.
 
@@ -404,7 +404,7 @@ Conjecture reduce_cumul : forall Σ φ Γ n t, Σ ;;; φ ;;; Γ |- try_reduce Σ
 
 Section Typecheck.
   Context `{F:Fuel}.
-  Context (Σ : global_context) (φ : constraints).
+  Context (Σ : global_context) (φ : uGraph.t).
 
   Definition hnf_stack Γ t :=
     match reduce_stack RedFlags.default Σ Γ fuel t [] with
@@ -661,20 +661,20 @@ Section Typecheck.
     - admit.
 
     - eexists.
-      apply cumul_reduce_to_sort in IHtyping1 as [s'' [-> Hs'']].
-      apply cumul_convert_leq in IHtyping2 as ->.
+      apply cumul_reduce_to_sort in IHX1 as [s'' [-> Hs'']].
+      apply cumul_convert_leq in IHX2 as ->.
       simpl. split; tc.
 
-    - apply cumul_reduce_to_sort in IHtyping1 as [s'' [-> Hs'']].
-      apply cumul_reduce_to_sort in IHtyping2 as [s''' [-> Hs''']].
+    - apply cumul_reduce_to_sort in IHX1 as [s'' [-> Hs'']].
+      apply cumul_reduce_to_sort in IHX2 as [s''' [-> Hs''']].
       simpl. eexists; split; tc.
       admit.
 
-    - eexists. apply cumul_reduce_to_sort in IHtyping1 as [s'' [-> Hs'']].
+    - eexists. apply cumul_reduce_to_sort in IHX1 as [s'' [-> Hs'']].
       split. reflexivity.
       apply congr_cumul_prod; tc.
 
-    - apply cumul_convert_leq in IHtyping2 as ->; simpl.
+    - apply cumul_convert_leq in IHX2 as ->; simpl.
       eexists ; split; tc.
       admit.
 
@@ -687,7 +687,7 @@ Section Typecheck.
     - admit.
 
     - (* destruct indpar. *)
-      apply cumul_reduce_to_ind in IHtyping2 as [args' [-> Hcumul]].
+      apply cumul_reduce_to_ind in IHX2 as [args' [-> Hcumul]].
       simpl in *. rewrite (proj2 (eq_ind_refl ind ind) eq_refl). 
       eexists ; split; [ reflexivity | tc ].
       admit.
@@ -906,8 +906,8 @@ Section Checker.
       check_fresh (global_decl_ident g) env
     end.
 
-  Definition typecheck_program φ (p : program) : EnvCheck term :=
-    let '(Σ, t) := decompose_program p [] in
+  Definition typecheck_program (p : program) : EnvCheck term :=
+    let '((φ, Σ), t) := decompose_program p (init_graph, []) in
     check_wf_env φ Σ ;; infer_term Σ φ t.
 
 End Checker.
