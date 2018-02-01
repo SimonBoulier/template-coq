@@ -22,22 +22,18 @@ Unset Template Cast Propositions.
 Definition timpl x y := tProd nAnon x (LiftSubst.lift0 1 y).
 
 Quote Recursively Definition four := (2 + 2).
+Unset Printing Matching.
 
-Ltac start := unfold type_program; intros; simpl decompose_program;
+Ltac typecheck := cbn; intros; constructor;
   match goal with
-    |- let '(_, _) := (?Σ, ?t) in squash _ => let sigma := fresh in set(sigma:=Σ); hnf; constructor
+    |- ?Σ ;;; ?φ ;;; ?Γ |- ?t : ?T =>
+    eapply (infer_correct Σ φ Γ t T); vm_compute; reflexivity
   end.
-
-Ltac typecheck := start;
+Ltac infer := cbn; intros; constructor;
   match goal with
-    |- ?Σ ;;; ?Γ |-- ?t : ?T =>
-    eapply (infer_correct Σ Γ t T); vm_compute; reflexivity
-  end.
-Ltac infer := start;
-  match goal with
-    |- ?Σ ;;; ?Γ |-- ?t : ?T => 
-    eapply (infer_correct Σ Γ t T);
-      let t' := eval vm_compute in (infer Σ Γ t) in
+    |- ?Σ ;;; ?φ ;;; ?Γ |- ?t : ?T =>
+    eapply (infer_correct Σ φ Γ t T);
+      let t' := eval vm_compute in (infer Σ φ Γ t) in
           change (t' = Checked T); reflexivity
   end.
 
@@ -53,7 +49,7 @@ Qed.
 (* Eval native_compute in typecheck_program p_Plus1. *)
 
 Definition test_reduction (p : program) :=
-    let '(Σ, t) := decompose_program p [] in
+    let '((_, Σ), t) := decompose_program p (init_graph, []) in
     reduce Σ [] t.
 
 Definition out_typing c :=
@@ -116,7 +112,7 @@ Module Test5.
   Defined.
 
   Time Template Check Plus1.
-  (* Too long
+  (* Too long  *)
   Quote Recursively Definition p_Plus1 := Plus1.
   
   Definition term := Plus1.
@@ -129,6 +125,6 @@ Module Test5.
   Make Definition inferred_type := ltac:(interp_infer ast).
   Definition inferred_type' := Eval cbv delta in inferred_type.
   Print inferred_type'.
-  Check convertible ltac:(term_type term) inferred_type. *)
+  Check convertible ltac:(term_type term) inferred_type.
 End Test5.
 

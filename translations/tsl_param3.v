@@ -110,7 +110,9 @@ Definition tsl_rec1 := tsl_rec1_app None.
 
 Definition tsl_mind_decl (E : tsl_table)
            (kn kn' : kername) (mind : minductive_decl) : tsl_table * list minductive_decl.
-  refine (_, [{| ind_npars := 2 * mind.(ind_npars); ind_bodies := _ |}]).
+  refine (_, [{| ind_npars := 2 * mind.(ind_npars);
+                 ind_bodies := _;
+                 ind_universes := mind.(ind_universes)|}]).  (* FIXME always ok? *)
   - refine (fold_left_i (fun E i ind => _ :: _ ++ E)%list mind.(ind_bodies) []).
     + (* ind *)
       exact (IndRef (mkInd kn i), tInd (mkInd kn' i) []).

@@ -988,58 +988,55 @@ Proof.
   split.
   destruct Σ.
   constructor.
-  inversion_clear wfΣ.
+  destruct wfΣ as [wfG wfΣ]. inversion_clear wfΣ.
   constructor.
-  (* refine (let IH' := IH (existT _ Σ (existT _ φ (existT _ (H0, X14) (existT _ Γ (existT _ (tSort Universe.type0m ) (existT _ (tSort Universe.type1) (type_Sort _ _ _ Universe.type0m Universe.type1 _))))))) in _). *)
-  (* simpl in IH'. forward IH'. constructor 1. simpl. omega. *)
-  (* apply IH'. *)
-  (* destruct g; simpl. *)
-  (* destruct cst_body. *)
-  (* simpl. *)
-  (* intros. *)
-  (* specialize (IH (existT _ Σ (existT _ φ (existT _ X14 (existT _ _ (existT _ _ (existT _ _ X16))))))). *)
-  (* simpl in IH. *)
-  (* forward IH. constructor 1. simpl; omega. *)
-  (* apply IH. *)
-  (* intros. *)
-  (* specialize (IH (existT _ Σ (existT _ φ (existT _ X14 (existT _ _ (existT _ _ (existT _ _ X16))))))). *)
-  (* simpl in IH. *)
-  (* forward IH. constructor 1. simpl; omega. *)
-  (* apply IH. *)
-  (* intros. *)
-  (* induction (ind_bodies m). constructor. *)
-  (* constructor; auto. *)
-  (* intros. *)
-  (* specialize (IH (existT _ Σ (existT _ φ (existT _ X14 (existT _ _ (existT _ _ (existT _ _ X16))))))). *)
-  (* simpl in IH. *)
-  (* forward IH. constructor 1. simpl; omega. *)
-  (* apply IH. *)
+  refine (let IH' := IH (existT _ Σ (existT _ φ (existT _ (wfG, X14) (existT _ Γ (existT _ (tSort Universe.type0m ) (existT _ (tSort Universe.type1) (type_Sort _ _ _ Universe.type0m Universe.type1 _))))))) in _).
+  simpl in IH'. forward IH'. constructor 1. simpl. omega.
+  apply IH'.
+  destruct g; simpl.
+  destruct cst_body.
+  simpl.
+  intros.
+  specialize (IH (existT _ Σ (existT _ φ (existT _ (wfG, X14) (existT _ _ (existT _ _ (existT _ _ X16))))))).
+  simpl in IH.
+  forward IH. constructor 1. simpl; omega.
+  apply IH.
+  intros.
+  specialize (IH (existT _ Σ (existT _ φ (existT _ (wfG, X14) (existT _ _ (existT _ _ (existT _ _ X16))))))).
+  simpl in IH.
+  forward IH. constructor 1. simpl; omega.
+  apply IH.
+  intros.
+  induction (ind_bodies m). constructor.
+  constructor; auto.
+  intros.
+  specialize (IH (existT _ Σ (existT _ φ (existT _ (wfG, X14) (existT _ _ (existT _ _ (existT _ _ X16))))))).
+  simpl in IH.
+  forward IH. constructor 1. simpl; omega.
+  apply IH.
 
-  (* assert (forall Γ t T (Hty : Σ ;;; φ ;;; Γ |- t : T), *)
-  (*            typing_size Hty < *)
-  (*            typing_size H -> *)
-  (*            Forall_decls_typing φ (fun (Σ : global_context) (t ty : term) => P Σ φ [] t ty) Σ * *)
-  (*            P Σ φ Γ t T). *)
-  (* intros. *)
-  (* specialize (IH (existT _ Σ (existT _ φ (existT _ wfΣ (existT _ _ (existT _ _ (existT _ _ Hty))))))). *)
-  (* simpl in IH. *)
-  (* forward IH. *)
-  (* constructor 2. simpl. apply H0. *)
-  (* apply IH. clear IH. *)
-  (* destruct H; *)
-  (* match reverse goal with *)
-  (*   H : _ |- _ => eapply H *)
-  (* end; eauto; *)
-  (*   try solve [unshelve eapply X14; simpl; auto with arith]. *)
-  (* unshelve eapply X14; simpl; auto with arith. *)
-  (* rewrite Nat.max_comm, <- Nat.max_assoc. auto with arith. *)
-  (* unshelve eapply X14; simpl; auto with arith. *)
-  (* setoid_rewrite Nat.max_comm at 2. *)
-  (* rewrite Nat.max_comm, <- Nat.max_assoc. auto with arith. *)
-  (* simpl in X14. refine (let H0' := X14 [] _ _ (type_Sort _ _ _ Universe.type0m Universe.type1 _) in _). *)
-  (* simpl in H0'. forward H0'; auto. apply H0'. *)
-  (* Unshelve. *)
-  (* cbn. (* FIXME *) *)
-Admitted.
-
-Extract Constant typing_ind_env => "fun p -> raise Not_found ".
+  assert (forall Γ t T (Hty : Σ ;;; φ ;;; Γ |- t : T),
+             typing_size Hty <
+             typing_size H ->
+             Forall_decls_typing φ (fun (Σ : global_context) (t ty : term) => P Σ φ [] t ty) Σ *
+             P Σ φ Γ t T).
+  intros.
+  specialize (IH (existT _ Σ (existT _ φ (existT _ wfΣ (existT _ _ (existT _ _ (existT _ _ Hty))))))).
+  simpl in IH.
+  forward IH.
+  constructor 2. simpl. apply H0.
+  apply IH. clear IH.
+  destruct H;
+  match reverse goal with
+    H : _ |- _ => eapply H
+  end; eauto;
+    try solve [unshelve eapply X14; simpl; auto with arith].
+  unshelve eapply X14; simpl; auto with arith.
+  rewrite Nat.max_comm, <- Nat.max_assoc. auto with arith.
+  unshelve eapply X14; simpl; auto with arith.
+  setoid_rewrite Nat.max_comm at 2.
+  rewrite Nat.max_comm, <- Nat.max_assoc. auto with arith.
+  simpl in X14. refine (let H0' := X14 [] _ _ (type_Sort _ _ _ Universe.type0m Universe.type1 _) in _).
+  simpl in H0'. forward H0'; auto. apply H0'.
+  Unshelve. all: apply wf_graph_prop_set; first [assumption|apply wfΣ].
+Qed.

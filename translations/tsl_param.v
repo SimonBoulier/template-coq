@@ -81,7 +81,7 @@ with tsl_term  (fuel : nat) (Σ : global_context) (E : tsl_table) (Γ : context)
     | Some t => ret t
     | None => raise (TranslationNotFound (string_of_gref (ConstructRef i n)))
     end
-  | t => match infer Σ Γ t with
+  | t => match infer Σ init_graph Γ t with
         | Checked typ => t1 <- tsl_rec fuel Σ E Γ true t ;;
                         t2 <- tsl_rec fuel Σ E Γ false t ;;
                         typ1 <- tsl_rec fuel Σ E Γ true typ ;;
