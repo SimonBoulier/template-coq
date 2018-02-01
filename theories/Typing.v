@@ -252,22 +252,6 @@ Section Forallb2.
     end.
 End Forallb2.
 
-(* Definition eq_universe u1 u2 := *)
-(*   (is_prop u1 && is_prop u2) || *)
-(*   (is_set u1 && is_set u2) || *)
-(*   (forallb (fun e => existsb (eq_level_expression e) u2) u1 *)
-(*            && forallb (fun e => existsb (eq_level_expression e) u1) u2). *)
-
-(* Definition leq_level_expression (e1 e2 : Level.t * bool) := *)
-(*   (eq_level_expression e1 e2) || *)
-(*   match e1, e2 with *)
-(*   | (lProp, false), _ => true *)
-(*   | (lSet, false), (l,_) => is_type_level l *)
-(*   (* | sType p, sType q => true (* Pos.leb p q  *)(* FIXME incorrect *) *) *)
-(*   | _, _ => true (* FIXME : complete *) *)
-(*   end. *)
-
-
 
 Definition eq_string s s' :=
   if string_dec s s' then true else false.
@@ -523,7 +507,7 @@ with typing_spine (Σ : global_context) (φ : uGraph.t) (Γ : context) : term ->
 
 
 Fixpoint decompose_program (p : program) (env : uGraph.t * global_context) : uGraph.t * global_context * term :=
-  match p with (* TODO Universes *)
+  match p with
   | PConstr s u ty trm p =>
     let decl :=  {| cst_universes := u; cst_type := ty; cst_body := Some trm |} in
     decompose_program p (add_constraints u (fst env), ConstantDecl s decl :: snd env)
@@ -598,7 +582,7 @@ Definition type_constant_decl Σ φ d :=
   end.
 
 Definition type_global_decl Σ φ decl :=
-  match decl with
+  match decl with  (* TODO universes *)
   | ConstantDecl id d => type_constant_decl Σ φ d
   | InductiveDecl ind inds => type_inductive Σ φ inds.(ind_bodies)
   end.
