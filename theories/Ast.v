@@ -259,6 +259,7 @@ Inductive TemplateMonad : Type -> Prop :=
 | tmQuoteRec : forall {A:Type}, A  -> TemplateMonad program
 (** Quote the body of a definition or inductive. Its name need not be fully qualified *)
 | tmQuoteInductive : kername -> TemplateMonad minductive_decl
+| tmQuoteUniverses : unit -> TemplateMonad uGraph.t
 | tmQuoteConstant : kername -> bool (** bypass opacity?*) -> TemplateMonad constant_entry
 | tmMkDefinition : ident -> term -> TemplateMonad unit
     (* unquote before making the definition *)

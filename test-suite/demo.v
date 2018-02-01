@@ -381,3 +381,10 @@ Quote Definition ones_syntax := Eval compute in ones.
 Make Definition ones' := Eval compute in ones_syntax.
 
 Check eq_refl : ones = ones'.
+
+
+Run TemplateProgram (tmQuoteUniverses tt >>= tmDefinition "universes").
+
+Print universes.
+Eval vm_compute in universes.
+(* Check (universes : uGraph.t). *)

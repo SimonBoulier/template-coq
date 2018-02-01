@@ -221,11 +221,11 @@ struct
     gen_constant_in_modules contrib_name [path] tm
 
   let pkg_datatypes = ["Coq";"Init";"Datatypes"]
+  let pkg_string = ["Coq";"Strings";"String"]
   let pkg_reify = ["Template";"Ast"]
   let pkg_univ = ["Template";"kernel";"univ"]
   let pkg_level = ["Template";"kernel";"univ";"Level"]
-  let pkg_string = ["Coq";"Strings";"String"]
-
+  let pkg_ugraph = ["Template";"kernel";"uGraph"]
   let ext_pkg_univ s = List.append pkg_univ [s]
 
   let r_reify = resolve_symbol pkg_reify
@@ -289,6 +289,8 @@ struct
   let tConstraintempty = Universes.constr_of_global (Coqlib.find_reference "template coq bug" (ext_pkg_univ "Constraint") "empty")
   let tConstraintadd = Universes.constr_of_global (Coqlib.find_reference "template coq bug" (ext_pkg_univ "Constraint") "add")
   let tmake_univ_constraint = resolve_symbol pkg_univ "make_univ_constraint"
+  let tinit_graph = resolve_symbol pkg_ugraph "init_graph"
+  let tadd_constraints = resolve_symbol pkg_ugraph  "add_constraints"
 
   let (tdef,tmkdef) = (r_reify "def", r_reify "mkdef")
   let (tLocalDef,tLocalAssum,tlocal_entry) = (r_reify "LocalDef", r_reify "LocalAssum", r_reify "local_entry")
@@ -315,11 +317,11 @@ struct
   let (tglobal_reference, tConstRef, tIndRef, tConstructRef) = (r_reify "global_reference", r_reify "ConstRef", r_reify "IndRef", r_reify "ConstructRef")
 
   let (tmReturn, tmBind, tmQuote, tmQuoteRec, tmEval, tmDefinition, tmAxiom, tmLemma, tmFreshName, tmAbout, tmCurrentModPath,
-       tmMkDefinition, tmMkInductive, tmPrint, tmFail, tmQuoteInductive, tmQuoteConstant, tmUnquote, tmUnquoteTyped) =
+       tmMkDefinition, tmMkInductive, tmPrint, tmFail, tmQuoteInductive, tmQuoteConstant, tmQuoteUniverses, tmUnquote, tmUnquoteTyped) =
     (r_reify "tmReturn", r_reify "tmBind", r_reify "tmQuote", r_reify "tmQuoteRec", r_reify "tmEval", r_reify "tmDefinition",
      r_reify "tmAxiom", r_reify "tmLemma", r_reify "tmFreshName", r_reify "tmAbout", r_reify "tmCurrentModPath",
      r_reify "tmMkDefinition", r_reify "tmMkInductive", r_reify "tmPrint", r_reify "tmFail", r_reify "tmQuoteInductive", r_reify "tmQuoteConstant",
-     r_reify "tmUnquote", r_reify "tmUnquoteTyped")
+     r_reify "tmQuoteUniverses", r_reify "tmUnquote", r_reify "tmUnquoteTyped")
 
   (* let pkg_specif = ["Coq";"Init";"Specif"] *)
   (* let texistT = resolve_symbol pkg_specif "existT" *)
@@ -450,6 +452,12 @@ struct
     let const' = quote_univ_constraints const in
     Term.mkApp (tUContextmake, [|inst'; const'|])
 
+
+  let quote_ugraph (g : UGraph.t) =
+    let inst' = quote_univ_instance Univ.Instance.empty in
+    let const' = quote_univ_constraints (UGraph.constraints_of_universes g) in
+    let uctx = Term.mkApp (tUContextmake, [|inst' ; const'|]) in
+    Term.mkApp (tadd_constraints, [|uctx; tinit_graph|])
 
   let quote_sort s =
     quote_universe (Sorts.univ_of_sort s)
@@ -1605,6 +1613,11 @@ struct
            | _ -> CErrors.user_err (str name ++ str " does not seem to be a constant.") in
          k (evm, entry)
       | _ -> monad_failure "tmQuoteConstant" 2
+    else if Term.eq_constr coConstr tmQuoteUniverses then
+      match args with
+      | _::[] -> let univs = Environ.universes env in
+                 k (evm, quote_ugraph univs)
+      | _ -> monad_failure "tmQuoteUniverses" 1
     else if Term.eq_constr coConstr tmPrint then
       match args with
       | _::trm::[] -> Feedback.msg_info (Printer.pr_constr trm);
