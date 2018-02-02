@@ -5,7 +5,7 @@ open Term
 open Ast0
 open Reify
 
-(* DECLARE PLUGIN "template_coq_plugin" *)
+DECLARE PLUGIN "template_coq_plugin"
 
 let quote_string s =
   let rec aux acc i =
