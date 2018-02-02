@@ -1,5 +1,5 @@
 From Template Require Import Ast Typing Checker LiftSubst monad_utils Template.
-Require Import Program List.
+Require Import Bool Program List.
 Import ListNotations MonadNotation String.
 Open Scope string_scope.
 
@@ -95,7 +95,8 @@ Proof.
             mind_entry_finite := Finite; (* inductive *)
             mind_entry_params := _;
             mind_entry_inds := _;
-            mind_entry_polymorphic := false;
+            mind_entry_polymorphic := _;
+            mind_entry_universes := decl.(ind_universes);
             mind_entry_private := None |}.
   - refine (match List.hd_error decl.(ind_bodies) with
             | Some i0 => _
@@ -119,6 +120,10 @@ Proof.
     refine (List.map (fun x => fst (fst x)) ind_ctors).
     refine (List.map (fun x => remove_arity decl.(ind_npars)
                                                 (snd (fst x))) ind_ctors).
+  - refine (let '(levels, constraints) := decl.(ind_universes) in
+            forallb _ levels
+           && forallb _ constraints).
+
 Defined.
 
 

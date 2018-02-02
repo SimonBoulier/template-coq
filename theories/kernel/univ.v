@@ -173,7 +173,7 @@ Module Universe.
   End Expr.
 
   (** INVARIANTS: not empty, sorted ??, no duplicate *)
-  Definition t := list Expr.t.
+  Definition t : Set := list Expr.t.
 
   (* val compare : t -> t -> int *)
   (* (** Comparison function *) *)
@@ -225,10 +225,10 @@ Module Universe.
   Definition type0 := [Expr.set].
   Definition type1 := [Expr.type1].
 
-  (* Definition super (u : t) : t := *)
-  (*   if is_small u then type1 *)
-  (*   else map _ u. *)
-  (* (** The universe strictly above *) *)
+  Definition super (u : Level.t) : t :=
+    if Level.is_small u then type1
+    else [(u, true)].
+  (** The universe strictly above *)
 
   Fixpoint insert {A} `{ComparableType A} (x : A) (l : list A) :=
     match l with
@@ -267,7 +267,7 @@ End Universe.
 
 Definition universe := Universe.t.
 
-Inductive constraint_type := Lt | Le | Eq.
+Inductive constraint_type : Set := Lt | Le | Eq.
 Definition univ_constraint : Set := universe_level * constraint_type * universe_level.
 
 Definition make_univ_constraint : universe_level -> constraint_type -> universe_level -> univ_constraint

@@ -2,36 +2,59 @@ Require Import BinInt List. Import ListNotations.
 From Template Require Import univ.
 
 
+
+(* Prop < Set <= other levels *)
+(* Each time a level l is inserted in the graph, the constraint *)
+(* Set <= l is added. *)
+
 (* For the moment we recompute the graph each time *)
+(* TODO the first component is useless *)
 Definition t : Type := LevelSet.t * Constraint.t.
 
-(* FIXME for the moment Prop : Set *)
+(* TODO use nat where Z is not useful or BinNat *)
+Local Open Scope Z.
+
+Definition edge : Set := Level.t * Z * Level.t.
+
+Definition edges_of_constraint (uc : univ_constraint) : list edge
+  := let '((l, ct),l') := uc in
+     match ct with
+     | Lt => [(l,-1,l')]
+     | Le => [(l,0,l')]
+     | Eq => [(l,0,l'); (l',0,l)]
+     end.
+
 Definition init_graph : t :=
   let levels := LevelSet.add Level.prop (LevelSet.add Level.set LevelSet.empty) in
-  let constraints := Constraint.add (Level.prop, Le, Level.set) Constraint.empty in
+  let constraints := Constraint.add (Level.prop, Lt, Level.set) Constraint.empty in
   (levels, constraints).
 
-Definition add_constraints (uctx : universe_context) (G : t)
-  := let levels := List.fold_left (fun s l => LevelSet.add l s) (fst uctx) (fst G) in
-     let constraints := Constraint.union (snd uctx) (snd G) in
+(* The monomorphic levels are > Set while polymorphic ones are >= Set. *)
+Definition add_node (l : Level.t) (G : t) : t
+  := let levels := LevelSet.add l (fst G) in
+     let constraints :=
+         match l with
+         | Level.lProp | Level.lSet => snd G (* supposed to be yet here *)
+         | Level.Var _ => Constraint.add (Level.set, Le, l) (snd G)
+         | Level.Level _ => Constraint.add (Level.set, Le, l) (snd G)
+         end in
      (levels, constraints).
+
+Definition add_constraint (uc : univ_constraint) (G : t) : t
+  := let '((l, ct),l') := uc in
+     (* maybe useless if we always add constraints
+        in which the universes are declared *)
+     let G := add_node l (add_node l' G) in
+     let constraints := Constraint.add uc (snd G) in
+     (fst G, constraints).
+
+Definition add_constraints (uctx : universe_context) (G : t) : t
+  := let G := List.fold_left (fun s l => add_node l s) (fst uctx) G in
+     Constraint.fold add_constraint (snd uctx) G.
 
 
 Section UGraph.
   Variable (φ : t).
-
-  (* TODO use nat where Z is not useful or BinNat *)
-  Local Open Scope Z.
-
-  Definition edge : Set := Level.t * Z * Level.t.
-
-  Definition edges_of_constraint (uc : univ_constraint) : list edge
-    := let '((l, ct),l') := uc in
-       match ct with
-       | Lt => [(l,-1,l')]
-       | Le => [(l,0,l')]
-       | Eq => [(l,0,l'); (l',0,l)]
-       end.
 
   (* FIXME duplicates *)
   Definition edges : list edge
@@ -43,16 +66,16 @@ Section UGraph.
 
   Definition Zinfty := (Z.pow 2 6)%Z.  (* FIXME bigger at least *)
 
-  Definition add_node l := LevelMap.add l (Level.Level "nil", Zinfty).
+  Definition add_node_pred_graph l := LevelMap.add l (Level.Level "nil", Zinfty).
 
   Definition init_pred_graph : pred_graph :=
-    LevelSet.fold add_node (fst φ) (LevelMap.empty _).
+    LevelSet.fold add_node_pred_graph (fst φ) (LevelMap.empty _).
 
   Definition relax (G : pred_graph) (e : edge) : pred_graph :=
     let '((u, w), v) := e in
     match LevelMap.find u G, LevelMap.find v G with
     | Some (_, ud), Some (_, vd)
-      => if Z.gtb vd (ud + w) then
+      => if vd >=? (ud + w) then
           LevelMap.add v (u, ud + w) G
         else G
     | _, _ => G

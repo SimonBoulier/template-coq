@@ -386,5 +386,5 @@ Check eq_refl : ones = ones'.
 Run TemplateProgram (tmQuoteUniverses tt >>= tmDefinition "universes").
 
 Print universes.
-Eval vm_compute in universes.
+Definition tyu := Eval vm_compute in universes.
 (* Check (universes : uGraph.t). *)

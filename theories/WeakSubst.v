@@ -128,8 +128,8 @@ Proof.
       f_equal. unfold lift_context. rewrite Heq. reflexivity.
 Qed.  
 
-Lemma typecheck_closed : env_prop (fun Σ φ Γ t T =>
-                                     type_local_env Σ φ Γ ->
+Lemma typecheck_closed : env_prop (fun Σ Γ t T =>
+                                     type_local_env Σ Γ ->
                                      closedn #|Γ| t && closedn #|Γ| T = true).
 Proof.
   apply typing_ind_env; intros; simpl; rewrite ?andb_true_iff in *; try solve [intuition auto].
@@ -163,11 +163,11 @@ Proof.
   constructor. now auto with arith.
 Qed.
 
-Lemma weakening_rec Σ φ Γ Γ' Γ'' (t : term) :
-  type_global_env φ Σ -> type_local_env Σ φ (Γ ,,, Γ') ->
-  type_local_env Σ φ (Γ ,,, Γ'' ,,, lift_context #|Γ''| 0 Γ') ->
-  `(Σ ;;; φ ;;; Γ ,,, Γ' |- t : T ->
-    Σ ;;; φ ;;; Γ ,,, Γ'' ,,, lift_context #|Γ''| 0 Γ' |-
+Lemma weakening_rec Σ Γ Γ' Γ'' (t : term) :
+  type_global_env (snd Σ) (fst Σ) -> type_local_env Σ (Γ ,,, Γ') ->
+  type_local_env Σ (Γ ,,, Γ'' ,,, lift_context #|Γ''| 0 Γ') ->
+  `(Σ ;;; Γ ,,, Γ' |- t : T ->
+    Σ ;;; Γ ,,, Γ'' ,,, lift_context #|Γ''| 0 Γ' |-
     lift #|Γ''| #|Γ'| t : lift #|Γ''| #|Γ'| T).
 Proof.
   intros HΣ HΓΓ' HΓ'' * H. revert Γ'' HΓ''. 
@@ -233,24 +233,24 @@ Proof.
     admit.
 Admitted.
 
-Lemma type_local_env_app Σ φ (Γ Γ' : context) : type_local_env Σ φ (Γ ,,, Γ') -> type_local_env Σ φ Γ.
+Lemma type_local_env_app Σ (Γ Γ' : context) : type_local_env Σ (Γ ,,, Γ') -> type_local_env Σ Γ.
 Admitted.
 
-Lemma weakening Σ φ Γ Γ' (t : term) :
-  type_global_env φ Σ -> type_local_env Σ φ (Γ ,,, Γ') ->
-  `(Σ ;;; φ ;;; Γ |- t : T ->
-    Σ ;;; φ ;;; Γ ,,, Γ' |- lift0 #|Γ'| t : lift0 #|Γ'| T).
+Lemma weakening Σ Γ Γ' (t : term) :
+  type_global_env (snd Σ) (fst Σ) -> type_local_env Σ (Γ ,,, Γ') ->
+  `(Σ ;;; Γ |- t : T ->
+    Σ ;;; Γ ,,, Γ' |- lift0 #|Γ'| t : lift0 #|Γ'| T).
 Proof.
   intros HΣ HΓΓ' * H.
-  pose (weakening_rec Σ φ Γ [] Γ' t).
+  pose (weakening_rec Σ Γ [] Γ' t).
   forward t0; eauto.
   forward t0; eauto. now eapply type_local_env_app in HΓΓ'. 
 Qed.
 
-Lemma substitution Σ φ Γ n u U (t : term) :
-  type_global_env φ Σ -> type_local_env Σ φ Γ ->
-  `(Σ ;;; φ ;;; Γ ,, vass n U |- t : T -> Σ ;;; φ ;;; Γ |- u : U ->
-    Σ ;;; φ ;;; Γ |- t {0 := u} : T {0 := u}).
+Lemma substitution Σ Γ n u U (t : term) :
+  type_global_env (snd Σ) (fst Σ) -> type_local_env Σ Γ ->
+  `(Σ ;;; Γ ,, vass n U |- t : T -> Σ ;;; Γ |- u : U ->
+    Σ ;;; Γ |- t {0 := u} : T {0 := u}).
 Proof.
   intros HΣ HΓ * Ht Hu.
 Admitted.
