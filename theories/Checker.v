@@ -514,6 +514,10 @@ Section Typecheck2.
       end
     |  _ => raise (UndeclaredInductive (mkInd ind i))
     end.
+
+  Definition try_suc (u : Universe.t) : Universe.t :=   (* FIXME suc s *)
+    map (fun '(l, b) =>  (l, true)) u.
+
   
   Fixpoint infer (Γ : context) (t : term) : typing_result term :=
     match t with
@@ -527,7 +531,7 @@ Section Typecheck2.
     | tMeta n => raise (UnboundMeta n)
     | tEvar ev args => raise (UnboundEvar ev)
 
-    | tSort s => ret (tSort s)  (* FIXME suc s *)
+    | tSort s => ret (tSort (try_suc s))
 
     | tCast c k t =>
       infer_type infer Γ t ;;

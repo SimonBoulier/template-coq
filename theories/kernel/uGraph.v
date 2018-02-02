@@ -160,3 +160,44 @@ Section UGraph.
     negb (detect_negative_cycle G).
 
 End UGraph.
+
+
+(* Section Test. *)
+
+(*   Compute init_graph. *)
+
+(*   Definition G := init_graph. *)
+
+(*   Compute (check_leq G Universe.type0m Universe.type0). *)
+(*   Compute (check_lt G Universe.type0m Universe.type0). *)
+(*   Compute (check_lt G Universe.type0m Universe.type0m). *)
+(*   Compute (check_lt G Universe.type0 Universe.type0m). *)
+(*   Compute (check_lt G Universe.type0 Universe.type0). *)
+(*   Compute (no_universe_inconsistency G). *)
+
+(*   Definition G' := add_constraint (Level.Level "Top.0", Lt, Level.Level "Top.1") *)
+(*                        (add_constraint (Level.Var 0, Lt, Level.Var 1) G). *)
+
+(*   Compute (check_lt G' (Universe.make (Level.Level "Top.0")) (Universe.make (Level.Var 0))). *)
+(*   Compute (check_leq G' (Universe.make (Level.Level "Top.1")) (Universe.make (Level.lProp))). *)
+(*   Compute (check_leq G' (Universe.super (Level.Level "Top.1")) (Universe.make (Level.Level "Top.1"))). *)
+(*   Compute (check_lt G' (Universe.make (Level.Level "Top.1")) (Universe.super (Level.Level "Top.1"))). *)
+(*   Compute (check_lt G' (Universe.make (Level.Level "Top.1")) (Universe.make (Level.Level "Top.1"))). *)
+
+
+(*   Compute G'. *)
+(*   Compute (no_universe_inconsistency G'). *)
+(*   Compute (check_lt G' (Universe.make (Level.Var 1)) (Universe.make (Level.Var 0))). *)
+(*   Compute (check_leq G' (Universe.make (Level.Var 0)) (Universe.make (Level.Var 1))). *)
+(*   Compute (check_lt G' (Universe.make (Level.Var 0)) (Universe.make (Level.Var 1))). *)
+
+(*   Compute (check_leq G' Universe.type1 Universe.type0). *)
+(*   Compute (check_lt G' Universe.type1 Universe.type1). *)
+
+
+(*   Definition G'' := add_constraint (Level.Var 1, Lt, Level.Var 2) *)
+(*                                   (add_constraint (Level.Var 2, Lt, Level.lSet) G'). *)
+
+(*   Compute (no_universe_inconsistency G''). *)
+
+(* End Test. *)

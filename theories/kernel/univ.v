@@ -42,7 +42,7 @@ Module Level.
   | Var (_ : nat) (* these are debruijn indices *).
 
   Definition set : t := lSet.
-  Definition prop : t := lSet.
+  Definition prop : t := lProp.
 
   Definition is_small (x : t) :=
     match x with
@@ -179,7 +179,7 @@ Module Universe.
   (* (** Comparison function *) *)
 
   Definition equal (u1 u2 : t) : bool :=
-    true (* FIXME *).
+    false. (* FIXME *)
   (* Equality function on formal universes *)
   (* val hash : t -> int *)
   (* (** Hash function *) *)
