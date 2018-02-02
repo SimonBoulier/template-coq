@@ -137,6 +137,7 @@ Definition mut_i : mutual_inductive_entry :=
   mind_entry_params := [];
   mind_entry_inds := [one_i; one_i2];
   mind_entry_polymorphic := false;
+  mind_entry_universes := ([], Constraint.empty);
   mind_entry_private := None;
 |}.
 
@@ -164,6 +165,7 @@ Definition mut_list_i : mutual_inductive_entry :=
   mind_entry_params := [("A", LocalAssum (tSort Universe.type0))];
   mind_entry_inds := [one_list_i];
   mind_entry_polymorphic := false;
+  mind_entry_universes := ([], Constraint.empty);
   mind_entry_private := None;
 |}.
 
@@ -189,6 +191,7 @@ Definition mut_pt_i : mutual_inductive_entry :=
   mind_entry_params := [("A", LocalAssum (tSort Universe.type0))];
   mind_entry_inds := [one_pt_i];
   mind_entry_polymorphic := false;
+  mind_entry_universes := ([], Constraint.empty);
   mind_entry_private := None;
 |}.
 
@@ -383,8 +386,8 @@ Make Definition ones' := Eval compute in ones_syntax.
 Check eq_refl : ones = ones'.
 
 
-Run TemplateProgram (tmQuoteUniverses tt >>= tmDefinition "universes").
-
-Print universes.
-Definition tyu := Eval vm_compute in universes.
+(* Too long *)
+(* Run TemplateProgram (tmQuoteUniverses tt >>= tmDefinition "universes"). *)
+(* Print universes. *)
+(* Definition tyu := Eval vm_compute in universes. *)
 (* Check (universes : uGraph.t). *)

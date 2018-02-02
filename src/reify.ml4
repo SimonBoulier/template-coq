@@ -1451,6 +1451,10 @@ struct
       not_supported_verb trm "unqote_map_option"
 
 
+  let denote_universe_context (trm : Term.constr) : Univ.universe_context =
+    Univ.UContext.empty (* FIXME !!! *)
+
+
   let declare_inductive (env: Environ.env) (evm: Evd.evar_map) (body: Term.constr) : unit =
   let (evm,body) = reduce_all env evm body in
   let (_,args) = app_full body [] in (* check that the first component is Build_mut_ind .. *)
@@ -1468,7 +1472,7 @@ struct
     }
     | _ -> raise (Failure "ill-typed one_inductive_entry")
      in
-  let mut_ind mr mf mp mi mpol mpr : Entries.mutual_inductive_entry =
+  let mut_ind mr mf mp mi mpol uctx mpr : Entries.mutual_inductive_entry =
     {
     mind_entry_record = unquote_map_option (unquote_map_option unquote_ident) mr;
     mind_entry_finite = denote_mind_entry_finite mf; (* inductive *)
@@ -1477,14 +1481,14 @@ struct
     mind_entry_inds = List.map one_ind (from_coq_list mi);
     (* mind_entry_polymorphic = from_bool mpol; *)
     mind_entry_universes =
-      if from_bool mpol then
-        (Polymorphic_ind_entry (snd (Evd.universe_context evm)))
-      else Monomorphic_ind_entry (snd (Evd.universe_context evm));
+      (let uctx = denote_universe_context uctx in
+      if from_bool mpol then Polymorphic_ind_entry uctx
+      else Monomorphic_ind_entry uctx);
     mind_entry_private = unquote_map_option from_bool mpr (*mpr*)
     } in
     match args with
-    mr::mf::mp::mi::mpol::mpr::[] ->
-      ignore(Command.declare_mutual_inductive_with_eliminations (mut_ind mr mf mp mi mpol mpr) [] [])
+    mr::mf::mp::mi::mpol::univs::mpr::[] ->
+      ignore(Command.declare_mutual_inductive_with_eliminations (mut_ind mr mf mp mi mpol univs mpr) [] [])
     | _ -> raise (Failure "ill-typed mutual_inductive_entry")
 
 

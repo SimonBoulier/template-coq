@@ -26,14 +26,14 @@ Unset Printing Matching.
 
 Ltac typecheck := cbn; intros; constructor;
   match goal with
-    |- ?Σ ;;; ?φ ;;; ?Γ |- ?t : ?T =>
-    eapply (infer_correct Σ φ Γ t T); vm_compute; reflexivity
+    |- ?Σ ;;; ?Γ |- ?t : ?T =>
+    eapply (infer_correct Σ Γ t T); vm_compute; reflexivity
   end.
 Ltac infer := cbn; intros; constructor;
   match goal with
-    |- ?Σ ;;; ?φ ;;; ?Γ |- ?t : ?T =>
-    eapply (infer_correct Σ φ Γ t T);
-      let t' := eval vm_compute in (infer Σ φ Γ t) in
+    |- ?Σ ;;; ?Γ |- ?t : ?T =>
+    eapply (infer_correct Σ Γ t T);
+      let t' := eval vm_compute in (infer Σ Γ t) in
           change (t' = Checked T); reflexivity
   end.
 
@@ -49,19 +49,25 @@ Qed.
 (* Eval native_compute in typecheck_program p_Plus1. *)
 
 Definition test_reduction (p : program) :=
-    let '((_, Σ), t) := decompose_program p (init_graph, []) in
-    reduce Σ [] t.
+    let '(Σ, t) := decompose_program p ([], init_graph) in
+    reduce (fst Σ) [] t.
+
+Definition string_of_env_error e :=
+  match e with
+  | IllFormedDecl s _ => ("IllFormedDecl " ++ s)%string
+  | AlreadyDeclared s => ("Alreadydeclared " ++ s)%string
+  end.
 
 Definition out_typing c :=
   match c with
   | Checked t => t
-  | TypeError e => tRel 0
+  | TypeError e => tVar ("Typing error")%string
   end.
 
 Definition out_check c :=
   match c with
   | CorrectDecl t => t
-  | EnvError e => tRel 0
+  | EnvError e => tVar ("Check error: " ++ string_of_env_error e)%string
   end.
 
 Ltac interp_red c :=
