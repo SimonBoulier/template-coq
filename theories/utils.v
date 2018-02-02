@@ -121,9 +121,13 @@ Proof.
     refine (List.map (fun x => remove_arity decl.(ind_npars)
                                                 (snd (fst x))) ind_ctors).
   - refine (let '(levels, constraints) := decl.(ind_universes) in
-            forallb _ levels
-           && forallb _ constraints).
-
+            let not_var := fun l => match l with
+                                 | Level.Var _  => false
+                                 | _ => true
+                                 end in
+            forallb not_var levels
+           && Constraint.for_all (fun '((l, _), l') => not_var l && not_var l')
+           constraints).
 Defined.
 
 

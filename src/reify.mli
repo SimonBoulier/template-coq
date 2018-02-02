@@ -46,13 +46,13 @@ module type Quoter = sig
   val quote_univ_constraints : Univ.Constraint.t -> quoted_univ_constraints
   val quote_univ_context : Univ.UContext.t -> quoted_univ_context
 
-  val quote_mind_params : (quoted_ident * (t,t) sum) list -> quoted_mind_params
-  val quote_mind_finiteness : Decl_kinds.recursivity_kind -> quoted_mind_finiteness
-  val quote_mutual_inductive_entry :
-    quoted_mind_finiteness * quoted_mind_params * quoted_ind_entry list * quoted_bool ->
-    quoted_mind_entry
+  (* val quote_mind_params : (quoted_ident * (t,t) sum) list -> quoted_mind_params *)
+  (* val quote_mind_finiteness : Decl_kinds.recursivity_kind -> quoted_mind_finiteness *)
+  (* val quote_mutual_inductive_entry : *)
+  (*   quoted_mind_finiteness * quoted_mind_params * quoted_ind_entry list * quoted_bool -> *)
+  (*   quoted_mind_entry *)
 
-  val quote_entry : (quoted_definition_entry, quoted_mind_entry) sum option -> quoted_entry
+  (* val quote_entry : (quoted_definition_entry, quoted_mind_entry) sum option -> quoted_entry *)
   val quote_proj : quoted_inductive -> quoted_int -> quoted_int -> quoted_proj
 
   val mkName : quoted_ident -> quoted_name

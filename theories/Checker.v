@@ -834,8 +834,8 @@ Section Typecheck2.
   
 End Typecheck2.
 
-Extract Constant infer_type_correct => "(fun f sigma phi ctx t x -> assert false)".
-Extract Constant infer_correct => "(fun f sigma phi ctx t ty -> assert false)".
+Extract Constant infer_type_correct => "(fun f sigma ctx t x -> assert false)".
+Extract Constant infer_correct => "(fun f sigma ctx t ty -> assert false)".
 
 Instance default_fuel : Fuel := { fuel := 2 ^ 18 }.
 
