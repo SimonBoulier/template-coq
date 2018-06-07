@@ -101,7 +101,10 @@ Fixpoint tsl_rec1_app (app : option term) (E : tsl_table) (t : term) : term :=
             (map (on_snd (tsl_rec1 E)) brs)
     | _ => debug "tCase" (match (fst ik) with mkInd s _ => s end)
     end
-  | _ => todo
+  | tProj _ _ => todo
+  | tFix _ _ | tCoFix _ _ => todo
+  | tVar _ | tMeta _ | tEvar _ _ => todo
+  | tLambda _ _ _ => tVar "impossible"
   end in
   match app with Some t' => mkApp t1 (t' {3 := tRel 1} {2 := tRel 0})
                | None => t1 end
@@ -125,7 +128,7 @@ Definition tsl_mind_body (E : tsl_table)
               ind_type := _;
               ind_kelim := ind.(ind_kelim);
               ind_ctors := _;
-              ind_projs := [] |}. (* todo *)
+              ind_projs := [] |}. (* UGLY HACK!!! todo *)
     + (* arity  *)
       refine (let ar := subst_app (tsl_rec1 E ind.(ind_type))
                                   [tInd (mkInd kn i) []] in
@@ -162,6 +165,10 @@ Instance param : Translation :=
      tsl_tm := fun ΣE t => ret (tsl_rec1 (snd ΣE) t) ;
      tsl_ty := fun '(Σ, E) t => todo "not meaningful here" ;
      tsl_ind := fun ΣE kn kn' mind => ret (tsl_mind_body (snd ΣE) kn kn' mind) |}.
+
+
+
+
 
 
 Definition T := forall A, A -> A.
@@ -252,54 +259,147 @@ Run TemplateProgram (TC <- tTranslate emptyTC "list" ;;
 
 
 
-(* Definition isequiv (A B : Type) (f : A -> B) := *)
-(*   exists (g : B -> A), (forall x, g (f x) = x) × (forall y, f (g y) = y). *)
+Require Import MiniHoTT.
+Module Axioms.
 
-(* Definition equiv_id A : isequiv A A (fun x => x). *)
-(*   unshelve econstructor. exact (fun y => y). *)
-(*   split; reflexivity. *)
-(* Defined. *)
+  Definition UIP := forall A (x y : A) (p q : x = y), p = q.
 
-(* Run TemplateProgram (TC <- tTranslate [] "sigma" ;; *)
-(*                      TC <- tTranslate TC "eq" ;; *)
-(*                      TC <- tTranslate TC "isequiv" ;; *)
-(*                      TC <- tTranslate TC "equiv_id" ;; *)
-(*                      tmDefinition "TC" TC). *)
 
-(* Quote Definition eq_rect_Type_ := (forall (A : Type) (x : A) (P : A -> Type), *)
-(* P x -> forall y : A, x = y -> P y). *)
-(* Make Definition eq_rect_Typeᵗ :=  ltac:(let t:= eval compute in (tsl_rec1 TC eq_rect_Type_) in exact t). *)
+  Run TemplateProgram (tmQuoteRec UIP >>= tmPrint).
 
-(* Lemma eq_rectᵗ : eq_rect_Typeᵗ eq_rect. *)
-(*   compute. intros A Aᵗ x xᵗ P Pᵗ X X0 y yᵗ H H0.  *)
-(*     by destruct H0. *)
-(* Defined. *)
+  Run TemplateProgram (TC <- tTranslateRec emptyTC UIP ;;
+                       tmDefinition "eqTC" TC).
 
-(* Definition TC' := (ConstRef "Coq.Init.Logic.eq_rect", tConst "eq_rectᵗ" []) :: TC. *)
+  Definition eqᵗ_eq {A Aᵗ x xᵗ y yᵗ p}
+    : eqᵗ A Aᵗ x xᵗ y yᵗ p -> p # xᵗ = yᵗ.
+  Proof.
+    destruct 1; reflexivity.
+  Defined.
 
-(* Definition eq_to_iso A B : A = B -> exists f, isequiv A B f. *)
-(*   refine (eq_rect _ (fun B => exists f : A -> B, isequiv A B f) _ _). *)
-(*   econstructor. *)
-(*   eapply equiv_id. *)
-(* Defined. *)
+  Definition eq_eqᵗ {A Aᵗ x xᵗ y yᵗ p}
+    : p # xᵗ = yᵗ -> eqᵗ A Aᵗ x xᵗ y yᵗ p.
+  Proof.
+    destruct p, 1; reflexivity.
+  Defined.
 
-(* Definition UA := forall A B, isequiv _ _ (eq_to_iso A B). *)
+  Definition eqᵗ_eq_equiv A Aᵗ x xᵗ y yᵗ p
+    : eqᵗ A Aᵗ x xᵗ y yᵗ p <~> p # xᵗ = yᵗ.
+  Proof.
+    unshelve eapply equiv_adjointify.
+    - apply eqᵗ_eq.
+    - apply eq_eqᵗ.
+    - destruct p; intros []; reflexivity.
+    - intros []; reflexivity.
+  Defined.
 
-(* Run TemplateProgram (TC <- tTranslate TC' "eq_to_iso" ;; *)
-(*                      tTranslate TC "UA"). *)
+  Theorem UIP_provably_parametric : forall h : UIP, UIPᵗ h.
+  Proof.
+    unfold UIP, UIPᵗ.
+    intros h A Aᵗ x xᵗ y yᵗ p pᵗ q qᵗ.
+    apply eq_eqᵗ.
+    refine (equiv_inj _ (H := equiv_isequiv (eqᵗ_eq_equiv _ _ _ _ _ _ _)) _).
+    apply h.
+  Defined.
 
-(* Arguments isequiv {A B} _. *)
-(* Arguments isequivᵗ {_ _ _ _} _ _. *)
-(* Arguments eqᵗ {A Aᵗ x xᵗ H} _ _.  *)
+  
+  Definition wFunext
+    := forall A (B : A -> Type) (f g : forall x, B x), (forall x, f x = g x) -> f = g.
+ 
 
-(* Axiom ua : UA. *)
+  Run TemplateProgram (tTranslate eqTC "wFunext").
 
-(* Goal UAᵗ ua. *)
-(*   intros A Aᵗ B Bᵗ.  *)
-(*   unshelve econstructor. *)
-(*   - intros [f e] []. clear f e. *)
-(*     assert (forall H, isequiv (π1ᵗ H)). { *)
-(*       destruct π2ᵗ. destruct π2ᵗ. *)
-(*       intro x. unshelve econstructor. *)
-(*       by refine (fun y => eq_rect _ Aᵗ (π1ᵗ0 _ y) _ _). *)
-(*       split. { intro. *)
+  Theorem wFunext_provably_parametric : forall h : wFunext, wFunextᵗ h.
+  Proof.
+    unfold wFunext, wFunextᵗ.
+    intros h A Aᵗ B Bᵗ f fᵗ g gᵗ X H. 
+    apply eq_eqᵗ.
+    apply h; intro x.
+    apply h; intro xᵗ.
+    specialize (H x xᵗ).
+    apply eqᵗ_eq in H.
+    refine (_ @ H).
+    rewrite !transport_forall_constant.
+    rewrite transport_compose.
+    eapply ap10. eapply ap.
+    rewrite ap_apply_lD.
+  Abort.
+
+  Definition Funext
+    := forall A B (f g : forall x : A, B x), IsEquiv (@apD10 A B f g).
+
+  Run TemplateProgram (TC <- tTranslateRec eqTC Funext ;;
+                   tmDefinition "eqTC'" TC).
+
+
+  Theorem wFunext_provably_parametric : forall h : Funext, Funextᵗ h.
+  Proof.
+    unfold Funext, Funextᵗ.
+    intros h A Aᵗ B Bᵗ f fᵗ g gᵗ.
+    unshelve eapply isequiv_adjointify.
+    apply eq_eqᵗ.
+    apply h; intro x.
+    apply h; intro xᵗ.
+    specialize (H x xᵗ).
+    apply eqᵗ_eq in H.
+    refine (_ @ H).
+    rewrite !transport_forall_constant.
+    rewrite transport_compose.
+    eapply ap10. eapply ap.
+    rewrite ap_apply_lD.
+  Abort.
+
+
+  
+
+eq_eqᵗ 
+Definition isequiv (A B : Type) (f : A -> B) :=
+  { g : B -> A & (forall x, g (f x) = x) * (forall y, f (g y) = y)}%type.
+
+Definition equiv_id A : isequiv A A (fun x => x).
+  unshelve econstructor. exact (fun y => y).
+  split; reflexivity.
+Defined.
+
+Run TemplateProgram (TC <- tTranslate [] "sigma" ;;
+                     TC <- tTranslate TC "eq" ;;
+                     TC <- tTranslate TC "isequiv" ;;
+                     TC <- tTranslate TC "equiv_id" ;;
+                     tmDefinition "TC" TC).
+
+Quote Definition eq_rect_Type_ := (forall (A : Type) (x : A) (P : A -> Type),
+P x -> forall y : A, x = y -> P y).
+Make Definition eq_rect_Typeᵗ :=  ltac:(let t:= eval compute in (tsl_rec1 TC eq_rect_Type_) in exact t).
+
+Lemma eq_rectᵗ : eq_rect_Typeᵗ eq_rect.
+  compute. intros A Aᵗ x xᵗ P Pᵗ X X0 y yᵗ H H0.
+    by destruct H0.
+Defined.
+
+Definition TC' := (ConstRef "Coq.Init.Logic.eq_rect", tConst "eq_rectᵗ" []) :: TC.
+
+Definition eq_to_iso A B : A = B -> exists f, isequiv A B f.
+  refine (eq_rect _ (fun B => exists f : A -> B, isequiv A B f) _ _).
+  econstructor.
+  eapply equiv_id.
+Defined.
+
+Definition UA := forall A B, isequiv _ _ (eq_to_iso A B).
+
+Run TemplateProgram (TC <- tTranslate TC' "eq_to_iso" ;;
+                     tTranslate TC "UA").
+
+Arguments isequiv {A B} _.
+Arguments isequivᵗ {_ _ _ _} _ _.
+Arguments eqᵗ {A Aᵗ x xᵗ H} _ _.
+
+Axiom ua : UA.
+
+Goal UAᵗ ua.
+  intros A Aᵗ B Bᵗ.
+  unshelve econstructor.
+  - intros [f e] []. clear f e.
+    assert (forall H, isequiv (π1ᵗ H)). {
+      destruct π2ᵗ. destruct π2ᵗ.
+      intro x. unshelve econstructor.
+      by refine (fun y => eq_rect _ Aᵗ (π1ᵗ0 _ y) _ _).
+      split. { intro.

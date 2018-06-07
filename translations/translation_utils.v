@@ -170,3 +170,113 @@ Definition tImplement {tsl : Translation} (ΣE : tsl_context)
 (*       tmReturn (Some (Σ', E')) *)
 (*     end *)
 (*   end. *)
+
+Require Import Ascii.
+
+Fixpoint string_of_ascii_list l :=
+  match l with
+  | nil => EmptyString
+  | a :: s => String a (string_of_ascii_list s)
+  end.
+
+Definition string_of_ascii_list_rev l := string_of_ascii_list (rev l).
+
+(* Compute (string_of_ascii_list_rev ["."; "g"; "h"]%char). *)
+
+
+(* empty list on empty string ?? *)
+(* acc is in reverse order *)
+Fixpoint split_string_aux (sep : ascii) (s : string) (acc : list ascii)
+  : list string :=
+  match s with
+  | EmptyString => [string_of_ascii_list_rev acc]
+  | String a s => if Ascii.ascii_dec a sep then (string_of_ascii_list_rev acc)
+                                                 :: (split_string_aux sep s [])
+                 else split_string_aux sep s (a :: acc)
+  end.
+
+Definition split_string (sep : Ascii.ascii) (s : string) : list string :=
+  split_string_aux sep s [].
+
+(* Compute (split_string "."%char "eopjqd.qS.E"). *)
+(* Compute (split_string "."%char ""). *)
+
+
+
+
+Definition tTranslateRec {tsl : Translation} (ΣE : tsl_context) {A} (t : A)
+  := 
+      (* gr <- tmAbout id ;; *)
+      (* t <- match gr with *)
+      (*     | Some (ConstRef kn) => *)
+      (*       tmUnquote (tConst kn []) *)
+      (*     | Some (IndRef ind) => *)
+      (*       tmUnquote (tInd ind []) *)
+      (*     | Some (ConstructRef ind n) => *)
+      (*       tmUnquote (tConstruct ind n []) *)
+      (*     | None  => fail_nf (id ++ " was not found") *)
+      (*     end ;; *)
+      (* t' <- tmEval hnf (my_projT2 t) ;; *)
+      (* (* let t' := my_projT2 t in *) *)
+      (* tmPrint t';; *)
+      p <- tmQuoteRec t ;;
+      (* tmPrint p ;; *)
+      tmPrint "~~~~~~~~~~~~~~~~~~" ;;
+      monad_fold_left (
+        fun ΣE decl => print_nf ("Translating " ++ global_decl_ident decl) ;;
+                             (* print_nf ΣE ;; *)
+                    match decl with
+                    | ConstantDecl kn decl =>
+                      match lookup_tsl_table (snd ΣE) (ConstRef kn) with
+                      | Some _ => print_nf (kn ++ " was already translated") ;; ret ΣE
+                      | None => 
+                        match decl with
+                        | {| cst_type := A; cst_body := None; cst_universes := univs |}
+                          => fail_nf (kn ++ " is an axiom")
+                        
+                        | {| cst_type := A; cst_body := Some t; cst_universes := univs |} =>
+                          (* tmPrint "go";; *)
+                          t' <- tmEval lazy (tsl_tm ΣE t) ;;
+                          (* tmPrint "done";; *)
+                          match t' with
+                          | Error e => print_nf e ;; fail_nf ("Translation error during the translation of the body of " ++ kn)
+                          | Success t' =>
+                            let id := last (split_string "."%char kn) kn in
+                            let id' := tsl_ident id in
+                            tmMkDefinition id' t' ;;
+                            let Σ' := add_global_decl (ConstantDecl kn decl) (fst ΣE) in
+                            let E' := (ConstRef kn, tConst id' []) :: (snd ΣE) in
+                            Σ' <- tmEval lazy Σ' ;;
+                            E' <- tmEval lazy E' ;;
+                            print_nf  (id ++ " has been translated as " ++ id') ;;
+                            ret (Σ', E')
+                           end
+                        end
+                      end
+
+                    | InductiveDecl kn d => 
+                      match lookup_tsl_table (snd ΣE) (IndRef (mkInd kn 0)) with
+                      | Some _ => ret ΣE
+                      | None => 
+                        let id := last (split_string "."%char kn) kn in
+                        let id' := tsl_ident id in
+                        let kn' := tsl_ident kn in
+                        (* tmPrint "go'";; *)
+                        d' <- tmEval lazy (tsl_ind ΣE kn id' d) ;;
+                        (* tmPrint "done'";; *)
+                        match d' with
+                        | Error e => 
+                          print_nf e ;; fail_nf ("Translation error during the translation of the inductive " ++ kn)
+                        | Success (E, decls) =>
+                          monad_fold_left (fun _ e => tmMkInductive' e) decls tt ;;
+                                          let Σ' := add_global_decl (InductiveDecl kn d) (fst ΣE) in
+                                          let E' := (E ++ (snd ΣE))%list in
+                                          Σ' <- tmEval lazy Σ' ;;
+                                          E' <- tmEval lazy E' ;;
+                                          print_nf  (kn ++ " has been translated as " ++ id') ;;
+                                          ret (Σ', E')
+                        end
+                      end
+                    end
+      ) (fst p) ΣE
+.

@@ -71,12 +71,20 @@ Fixpoint lookup_mind_decl (id : ident) (decls : global_declarations)
 Definition mind_body_to_entry (decl : mutual_inductive_body)
   : mutual_inductive_entry.
 Proof.
-  refine {| mind_entry_record := None; (* not a record *)
+  refine {| mind_entry_record := _;
             mind_entry_finite := Finite; (* inductive *)
             mind_entry_params := _;
             mind_entry_inds := _;
             mind_entry_universes := decl.(ind_universes);
             mind_entry_private := None |}.
+  - (* is it a record? *)
+    refine (match List.hd_error decl.(ind_bodies) with
+            | None => None (* assert false *)
+            | Some i0 => match i0.(ind_projs) with
+                        | nil => None
+                        | _ => Some (Some ("Build_" ++ i0.(ind_name)))
+                        end
+            end).
   - refine (match List.hd_error decl.(ind_bodies) with
             | Some i0 => _
             | None => nil (* assert false: at least one inductive in a mutual block *)
