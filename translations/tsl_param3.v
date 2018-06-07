@@ -158,7 +158,7 @@ Defined.
 Notation "t · u" := (Appᶠ t u) (at level 65, left associativity).
 
 
-Definition sigmaᵀ (A : El Tyᵗ) (P : El (A →ᶠ Tyᵗ)) : Type :=
+Definition sigmaᵀ (A : El Tyᵗ) (P : El (A →ᶠ Tyᵗ)) :=
   sigma (El A) (fun x => El (P · x)).
 
 Definition existᵀ (A : El Tyᵗ) (P : El (A →ᶠ Tyᵗ))
@@ -213,7 +213,7 @@ Quote Recursively Definition false_prog := @False.
 Definition sigma_decl := Eval compute in
       lookup_mind_decl "Translations.sigma.sigma" (fst sigma_prog).
 Definition eq_decl := Eval compute in
-      lookup_mind_decl "Translations.tsl_param.eq" (fst eq_prog).
+      lookup_mind_decl "Translations.tsl_param3.eq" (fst eq_prog).
 Definition false_decl := Eval compute in
       lookup_mind_decl "Coq.Init.Logic.False" (fst false_prog).
 
@@ -239,7 +239,7 @@ Definition HasTwoElFstComponentᵗ : El (Tyᵗ →ᶠ Tyᵗ)
   := λᶠ (T : El Tyᵗ), mkTYPE (exists (x y : T.1), x = y -> False) (fun _ => unit).
 
 
-Definition equiv (A B : Type) :=
+Definition equiv (A B : Type) : Type :=
   (* Type. *)
   exists (f : A -> B) (g : B -> A),
     (forall x, eq (g (f x)) x) × (forall x, eq (f (g x)) x).
@@ -256,42 +256,43 @@ Defined.
 Quote Definition equiv_ := Eval compute in equiv.
 
 
-(* Check "go". *)
+Check "go".
 
-(* Run TemplateProgram (match ΣE with *)
-(*                      | None => tmFail "bug: no tsl_ctx" *)
-(*                      | Some ΣE => *)
-(*                        ΣE <- TslParam ΣE "equiv" ;; *)
-(*                        (* tmPrint ΣE' ;; *) *)
-(*                        tmPrint "lo" ;; *)
-(*                        H <- ImplParam ΣE "notUnivalence" *)
-(*                        (exists A B : Type, (equiv A B) × exists P, P A × ((P B) -> False)) ;; *)
-(*                        (* (exists A : Type, (equiv A A)) ;; *) *)
-(*                        tmPrint "done" *)
-(*                      end). *)
-(* Check "proof". *)
-(* Next Obligation. *)
-(* simple refine (existᶠ · _ · _ · _ · _). *)
-(* exact (bool:Type; fun _=> unit:Type). *)
-(* simple refine (existᶠ · _ · _ · _ · _). *)
-(* exact (unit:Type; fun _ => bool:Type). *)
-(* simple refine (existᶠ · _ · _ · _ · _). *)
-(* - simple refine (existᶠ · _ · _ · _ · _). *)
-(*   exists π2. exact π1. *)
-(*   simple refine (existᶠ · _ · _ · _ · _). *)
-(*   exists π2. exact π1. *)
-(*   simple refine (existᶠ · _ · _ · _ · _); *)
-(*     cbn; unshelve econstructor; reflexivity. *)
-(* - simple refine (existᶠ · _ · _ · _ · _). *)
-(*   exact HasTwoElFstComponentᵗ. *)
-(*   simple refine (existᶠ · _ · _ · _ · _). *)
-(*   + cbn. refine (_; tt). exists true. exists false. *)
-(*     discriminate 1. *)
-(*   + compute. *)
-(*     split; (intro p; *)
-(*             destruct p as [p _]; *)
-(*             destruct p as [[] [[] p]]; *)
-(*             contradiction p; reflexivity). *)
-(* Defined. *)
+Fail Run TemplateProgram (match ΣE with
+                     | None => tmFail "bug: no tsl_ctx"
+                     | Some ΣE =>
+                       ΣE <- TslParam ΣE "equiv" ;;
+                       (* tmPrint ΣE' ;; *)
+                       tmPrint "lo" ;;
+                       H <- ImplParam ΣE "notUnivalence"
+                       (exists A B : Type, (equiv A B) × exists P, P A × ((P B) -> False)) ;;
+                       (* (exists A : Type, (equiv A A)) ;; *)
+                       tmPrint "done"
+                     end).
+Set Printing Universes.
+Check "proof".
+Next Obligation.
+simple refine (existᶠ · _ · _ · _ · _).
+exact (bool:Type; fun _=> unit:Type).
+simple refine (existᶠ · _ · _ · _ · _).
+exact (unit:Type; fun _ => bool:Type).
+simple refine (existᶠ · _ · _ · _ · _).
+- simple refine (existᶠ · _ · _ · _ · _).
+  exists π2. exact π1.
+  simple refine (existᶠ · _ · _ · _ · _).
+  exists π2. exact π1.
+  simple refine (existᶠ · _ · _ · _ · _);
+    cbn; unshelve econstructor; reflexivity.
+- simple refine (existᶠ · _ · _ · _ · _).
+  exact HasTwoElFstComponentᵗ.
+  simple refine (existᶠ · _ · _ · _ · _).
+  + cbn. refine (_; tt). exists true. exists false.
+    discriminate 1.
+  + compute.
+    split; (intro p;
+            destruct p as [p _];
+            destruct p as [[] [[] p]];
+            contradiction p; reflexivity).
+Defined.
 
-(* Check "ok!". *)
+Check "ok!".

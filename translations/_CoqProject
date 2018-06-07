@@ -4,6 +4,7 @@
 -arg -type-in-type
 
 sigma.v
+MiniHoTT.v
 translation_utils.v
 tsl_param.v
 tsl_param2.v
