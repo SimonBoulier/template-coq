@@ -5,6 +5,7 @@
 
 sigma.v
 MiniHoTT.v
+MiniHoTT_paths.v
 translation_utils.v
 tsl_param.v
 tsl_param2.v
