@@ -1,3 +1,4 @@
+(* -*- coq-prog-args: ("-type-in-type" "-top" "Translations.tsl_fun") -*-  *)
 Require Import Template.All.
 From Translations Require Import translation_utils.
 Import String Lists.List.ListNotations MonadNotation.
@@ -11,8 +12,6 @@ Arguments snd {_ _} _.
 Arguments pair {_ _} _ _.
 
 Notation "( x ; y )" := (pair x y) : prod_scope.
-Notation "x .1" := (fst x) (at level 2, left associativity, format "x '.1'") : prod_scope.
-Notation "x .2" := (snd x) (at level 2, left associativity, format "x '.2'") : prod_scope.
 Notation " A × B " := (prod A B) (at level 30) : type_scope.
 
 Quote Definition tprod := prod.
@@ -36,6 +35,9 @@ Definition lookup_tsl_table' E gr :=
   | None => raise (TranslationNotFound (string_of_gref gr))
   end.
 
+
+Local Instance tit : checker_flags
+  := {| check_univs := false |}.
 
 Fixpoint tsl_rec (fuel : nat) (Σ : global_context) (E : tsl_table) (Γ : context) (t : term) {struct fuel}
   : tsl_result term :=
@@ -71,7 +73,17 @@ Fixpoint tsl_rec (fuel : nat) (Σ : global_context) (E : tsl_table) (Γ : contex
   | tConstruct i n univs => lookup_tsl_table' E (ConstructRef i n)
   | tProj p t => t' <- tsl_rec fuel Σ E Γ t ;;
                 ret (tProj p t)
-  | _ => raise TranslationNotHandeled (* var evar meta case fix cofix *)
+  | tFix bodies n => Γ' <- monad_map (fun '{| dname := na; dtype := ty; dbody := b; rarg := r |} =>
+                                      ty' <- tsl_rec fuel Σ E Γ ty ;;
+                                      ret {| decl_name := na; decl_body := None; decl_type := ty'|})
+                       bodies;;
+                    bodies' <- monad_map (fun '{| dname := na; dtype := ty; dbody := b; rarg := r |} =>
+                                           ty' <- tsl_rec fuel Σ E Γ ty ;;
+                                           b'  <- tsl_rec fuel Σ E (Γ ++ Γ')%list b ;;
+                                           ret {| dname := na; dtype := ty'; dbody := b'; rarg := r |})
+                       bodies ;;
+                    ret (tFix bodies' n)
+  | _ => raise TranslationNotHandeled (* var evar meta case cofix *)
   end
  end.
 
@@ -178,6 +190,7 @@ Tactic Notation "tIntro" ident(H) := refine (fun H => _; true).
 
 Run TemplateProgram (TC <- tTranslate emptyTC "eq" ;;
                      TC <- tTranslate TC "False" ;;
+                     tmDefinition "TC" TC ;;
                      tImplement TC "notFunext"
                      ((forall (A B : Set) (f g : A -> B), (forall x:A, f x = g x) -> f = g) -> False)).
 
@@ -189,7 +202,91 @@ Next Obligation.
   inversion H. 
 Defined.
 
+Run TemplateProgram (tImplement TC "notη" ((forall (A B : Set) (f : A -> B), f = fun x => f x) -> False)).
+
+Next Obligation.
+  tIntro H. 
+  tSpecialize H unit. tSpecialize H unit. 
+  tSpecialize H (fun x => x; false). cbn in H.
+  inversion H. 
+Defined.
+
 Require Import Vector Even.
 (* Run TemplateProgram (TC <- tTranslate emptyTC "nat" ;; *)
 (*                      TC <- tTranslate TC "t" ;; *)
 (*                      TC <- tTranslate TC "even" ;; ret tt). *)
+
+
+
+Require Import MiniHoTT.
+Module Axioms.
+
+  Definition UIP := forall A (x y : A) (p q : x = y), p = q.
+
+
+  Run TemplateProgram (tmQuoteRec UIP >>= tmPrint).
+
+  Run TemplateProgram (TC <- tTranslateRec emptyTC UIP ;;
+                       tmDefinition "eqTC" TC).
+
+  Definition eqᵗ_eq {A} x y
+    : eqᵗ A x y -> x = y.
+  Proof.
+    destruct 1; reflexivity.
+  Defined.
+
+  Definition eq_eqᵗ {A} x y
+    : x = y -> eqᵗ A x y.
+  Proof.
+    destruct 1; reflexivity.
+  Defined.
+
+  Definition isequiv_eqᵗ_eq {A} x y
+    : IsEquiv (@eqᵗ_eq A x y).
+  Proof.
+    unshelve eapply isequiv_adjointify.
+    apply eq_eqᵗ.
+    all: intros []; reflexivity.
+  Defined.
+
+  Theorem preserves_UIP : UIP -> UIPᵗ.
+  Proof.
+    unfold UIP, UIPᵗ.
+    intros H.
+    tIntro A. tIntro x. tIntro y. tIntro p. tIntro q.
+    cbn in *.
+    apply eq_eqᵗ. refine (equiv_inj _ (H := isequiv_eqᵗ_eq _ _) _).
+    apply H.
+  Defined.
+
+  
+  Definition wFunext
+    := forall A (B : A -> Type) (f g : forall x, B x), (forall x, f x = g x) -> f = g.
+ 
+
+  Open Scope prod_scope.
+  Run TemplateProgram (TC <- tTranslateRec eqTC (wFunext -> False) ;;
+                       tImplement TC "notwFunext" (wFunext -> False)).
+  Next Obligation.
+    tIntro H.
+    tSpecialize H unit. tSpecialize H (fun _ => unit; true). 
+    tSpecialize H (fun x => x; true). tSpecialize H (fun x => x; false). 
+    tSpecialize H (fun x => eq_reflᵗ _ _; true).
+    inversion H. 
+  Defined.
+
+  Definition wUnivalence
+    := forall A B, Equiv A B -> A = B.
+ 
+
+  Fail Run TemplateProgram (TC <- tTranslateRec eqTC (wUnivalence -> False) ;;
+                       tImplement TC "notwUnivalence" (wUnivalence -> False)).
+  Next Obligation.
+    tIntro H.
+    tSpecialize H unit. tSpecialize H (fun _ => unit; true). 
+    tSpecialize H (fun x => x; true). tSpecialize H (fun x => x; false). 
+    tSpecialize H (fun x => eq_reflᵗ _ _; true).
+    inversion H. 
+  Defined.
+
+  

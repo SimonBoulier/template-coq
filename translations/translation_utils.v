@@ -89,8 +89,12 @@ Definition tTranslate {tsl : Translation} (ΣE : tsl_context) (id : ident)
       | Error e => print_nf e ;; fail_nf ("Translation error during the translation of the inductive " ++ id)
       | Success (E, decls) =>
         monad_fold_left (fun _ e => tmMkInductive' e) decls tt ;;
-        print_nf  (id ++ " has been translated as " ++ id') ;;
-        ret (add_global_decl (InductiveDecl kn d) (fst ΣE), E ++ snd ΣE)%list
+        let Σ' := add_global_decl (InductiveDecl kn d) (fst ΣE) in
+        let E' := (E ++ (snd ΣE))%list in
+        Σ' <- tmEval lazy Σ' ;;
+        E' <- tmEval lazy E' ;;
+        print_nf  (kn ++ " has been translated as " ++ id') ;;
+        ret (Σ', E')
       end
 
   | Some (ConstRef kn) =>
@@ -109,6 +113,8 @@ Definition tTranslate {tsl : Translation} (ΣE : tsl_context) (id : ident)
                        cst_type := A; cst_body := Some t |} in
         let Σ' := add_global_decl (ConstantDecl kn decl) (fst ΣE) in
         let E' := (ConstRef kn, tConst kn' []) :: (snd ΣE) in
+        Σ' <- tmEval lazy Σ' ;;
+        E' <- tmEval lazy E' ;;
         print_nf  (id ++ " has been translated as " ++ id') ;;
         ret (Σ', E')
       end
@@ -122,6 +128,7 @@ Definition tImplement {tsl : Translation} (ΣE : tsl_context)
   : TemplateMonad (tsl_context) :=
   tA <- tmQuote A ;;
   tA' <- tmEval lazy (tsl_ty ΣE tA) ;;
+  print_nf tA' ;;
   match tA' with
   | Error e => print_nf e ;; fail_nf ("Translation error during the translation of the type of " ++ id)
   | Success tA' =>
@@ -142,34 +149,114 @@ Definition tImplement {tsl : Translation} (ΣE : tsl_context)
       end
   end.
 
+Definition body_constant_entry (e : constant_entry) : option term :=
+  match e with
+  | ParameterEntry _ => None
+  | DefinitionEntry {| definition_entry_body := t |} => Some t
+  end.
 
-(* Definition tImplementExisting (tsl_id : ident -> ident) *)
-(*            (tsl_tm tsl_ty : global_context -> tsl_table -> term *)
-(*                             -> tsl_result term) *)
-(*            (Σ : tsl_context) (id : ident) *)
-(*   : TemplateMonad (option tsl_context) := *)
-(*   e <- tmQuoteConstant id true ;; *)
-(*   match e with *)
-(*   | ParameterEntry _ => tmPrint "Not a definition" ;; *)
-(*                        tmReturn None *)
-(*   | DefinitionEntry {| definition_entry_type := A; *)
-(*                        definition_entry_body := t |} => *)
-(*     match tsl_ty (fst Σ) (snd Σ) A with *)
-(*     | Error _ => tmPrint "tsl error in type" ;; *)
-(*                   tmReturn None *)
-(*     | Success tA' => *)
-(*       id' <- tmEval all (tsl_id id) ;; *)
-(*       A' <- tmUnquoteTyped Type tA' ;; *)
-(*       tmLemma id' A' ;; *)
-(*       let decl := {| cst_universes := []; *)
-(*                      cst_type := A; cst_body := Some t |} in *)
-(*       let Σ' := ConstantDecl id decl :: (fst Σ) in *)
-(*       let E' := (ConstRef id, tConst id' []) :: (snd Σ) in *)
-(*       msg <- tmEval all (id ++ " has been translated as " ++ id') ;; *)
-(*       tmPrint msg ;; *)
-(*       tmReturn (Some (Σ', E')) *)
-(*     end *)
-(*   end. *)
+
+Definition tmDebug {A} : A -> TemplateMonad unit
+  (* := tmPrint. *)
+  := fun _ => ret tt.
+
+Definition tImplementExisting {tsl : Translation} (ΣE : tsl_context) (id : ident)
+  : TemplateMonad tsl_context :=
+  gr <- tmAbout id ;;
+  id' <- tmEval all (tsl_id id) ;;
+  mp <- tmCurrentModPath tt ;;
+  kn' <- tmEval all (mp ++ "." ++ id') ;;
+  match gr with
+  | None => fail_nf (id ++ " not found")
+  | Some (ConstRef kn) =>
+    e <- tmQuoteConstant kn true ;;
+    match e with
+    | ParameterEntry  {| parameter_entry_type := A  |}
+    | DefinitionEntry {| definition_entry_type := A |} =>
+      tmDebug "plop1" ;;
+      ΣE <- tmEval lazy ΣE ;;
+      tmDebug ΣE ;;
+      tA' <- tmEval lazy (tsl_ty ΣE A) ;;  (* long *)
+      tmDebug "plop" ;;
+      match tA' with
+      | Error e => print_nf e ;; fail_nf ("Translation error during the translation of the type of " ++ id)
+      | Success tA' =>
+      tmDebug "plop2" ;;
+        id' <- tmEval all (tsl_id id) ;;
+        A' <- tmUnquoteTyped Type tA' ;;
+      tmDebug "plop3" ;;
+        tmLemma id' A' ;;
+        let decl := {| cst_universes := Monomorphic_ctx UContext.empty;
+                       cst_type := A; cst_body := body_constant_entry e |} in
+        let Σ' := add_global_decl (ConstantDecl kn decl) (fst ΣE) in
+        let E' := (ConstRef kn, tConst id' []) :: (snd ΣE) in
+        print_nf (id ++ " has been translated as " ++ id') ;;
+        ret (Σ', E')
+      end
+    end
+  | Some (IndRef (mkInd kn n)) =>
+    d <- tmQuoteInductive kn ;;
+    match List.nth_error (ind_bodies d) n with
+      | None => tmFail "bug"
+      | Some {| ind_type := A |} => 
+      tA' <- tmEval lazy (tsl_ty ΣE A) ;;
+      match tA' with
+      | Error e => print_nf e ;; fail_nf ("Translation error during the translation of the type of " ++ id)
+      | Success tA' =>
+        id' <- tmEval all (tsl_id id) ;;
+        A' <- tmUnquoteTyped Type tA' ;;
+        tmLemma id' A' ;;
+        let Σ' := add_global_decl (InductiveDecl kn d) (fst ΣE) in
+        let E' := (IndRef (mkInd kn n), tConst id' []) :: (snd ΣE) in
+        print_nf (id ++ " has been translated as " ++ id') ;;
+        ret (Σ', E')
+      end
+      (* d' <- tmEval lazy (tsl_ind ΣE kn kn' d) ;; *)
+      (* match d' with *)
+      (* | Error e => print_nf e ;; fail_nf ("Translation error during the translation of the inductive " ++ id) *)
+      (* | Success (E, decls) => *)
+      (*   monad_fold_left (fun _ e => tmMkInductive' e) decls tt ;; *)
+      (*   let Σ' := add_global_decl (InductiveDecl kn d) (fst ΣE) in *)
+      (*   let E' := (E ++ (snd ΣE))%list in *)
+      (*   Σ' <- tmEval lazy Σ' ;; *)
+      (*   E' <- tmEval lazy E' ;; *)
+      (*   print_nf  (kn ++ " has been translated as " ++ id') ;; *)
+      (*   ret (Σ', E') *)
+    end
+
+  | Some (ConstructRef (mkInd kn n) k) =>
+    d <- tmQuoteInductive kn ;;
+      tmDebug "plop1" ;;
+    match List.nth_error (ind_bodies d) n with
+      | None => tmFail "bug"
+      | Some {| ind_ctors := ctors |} => 
+      tmDebug "plop2" ;;
+        match List.nth_error ctors k with
+        | None => tmFail "bug'"
+        | Some (id, ty, _) =>
+      tmDebug "plop3" ;;
+          let A := substl (inds kn [] (* FIXME uctx *) (ind_bodies d)) ty in
+      tmDebug "plop4" ;;
+          tA' <- tmEval lazy (tsl_ty ΣE A) ;;
+      tmDebug "plop5" ;;
+          match tA' with
+          | Error e => print_nf e ;;
+                      fail_nf ("Translation error during the translation of the type of " ++ id)
+          | Success tA' =>
+      tmDebug "plop6" ;;
+            id' <- tmEval all (tsl_id id) ;;
+            A' <- tmUnquoteTyped Type tA' ;;
+      tmDebug "plop7" ;;
+            tmLemma id' A' ;;
+            let E' := (ConstructRef (mkInd kn n) k, tConst id' []) :: (snd ΣE) in
+            print_nf (id ++ " has been translated as " ++ id') ;;
+            ret (fst ΣE, E')
+          end
+        end
+    end
+  end.
+
+
 
 Require Import Ascii.
 
