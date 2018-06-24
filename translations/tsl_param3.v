@@ -138,22 +138,10 @@ Instance tsl_param : Translation
 Notation "'TYPE'" := (exists A, A -> Type).
 Notation "'El' A" := (@sigT A.1 A.2) (at level 20).
 
-Run TemplateProgram (TC <- tImplement emptyTC "toto" (forall X, X) ;;
-                     tmPrint TC).
-Next Obligation.
-Abort.
-
 
 Definition Ty := Type.
-(* Set Printing Universes. *)
 Run TemplateProgram (tTranslate emptyTC "Ty").
 Check Tyᵗ : El Tyᵗ.
-
-(* Definition mk_sig : forall {A} {B : A -> Type} (π1 : A), B π1 -> sigma A B *)
-(*   := @mk_sig. *)
-(* Axiom sigma_rect : forall A (B : A -> Type) (P : sigma A B -> Type), *)
-(*     (forall (x : A) (y : B x), P (mk_sig x y)) -> forall s, P s. *)
-(*   (* intros A B P X s. apply X. Defined. *) *)
 
 
 
@@ -179,7 +167,6 @@ Next Obligation.
   - cbn; intros A B x y. exact y.2.
 Defined.
 
-(* Compute TC'.  *)
 Time Run TemplateProgram (TC <- tImplementExisting TC' "sigT_ind" ;;
                           tmDefinition "TC''" TC).
 Check "yo".
@@ -219,7 +206,8 @@ Next Obligation.
 Defined.
 
 
-Definition Funext := forall A (B : A -> Type) (f g : forall x, B x), (forall x, paths (f x) (g x)) -> paths f g.
+Definition Funext :=
+  forall A (B : A -> Type) (f g : forall x, B x), (forall x, paths (f x) (g x)) -> paths f g.
 
 Run TemplateProgram (tTranslate TC5 "Funext").
 
@@ -259,7 +247,6 @@ Defined.
 Notation " A × B " := (@sigT A (fun _ => B)) (at level 30) : type_scope.
 
 Definition equiv (A B : Type) : Type :=
-  (* Type. *)
   exists (f : A -> B) (g : B -> A),
     (forall x, paths (g (f x)) x) × (forall x, paths (f (g x)) x).
 
@@ -272,170 +259,32 @@ Next Obligation.
 Defined.
 
 
-
-
 Check "go".
-Run TemplateProgram (
-                       ΣE <- tTranslate TC6 "equiv" ;;
-                       tmPrint "lo" ;;
-                       H <- tImplement ΣE "notUnivalence"
-                       (exists A B : Set, (equiv A B) × exists P, P A × ((P B) -> False)) ;;
-                       tmPrint "done"
-                     ).
+Time
+Run TemplateProgram (ΣE <- tTranslate TC6 "equiv" ;;
+                     tmPrint "lo" ;;
+                     H <- tImplement ΣE "notUnivalence"
+                     (exists A B, (equiv A B) × exists P, P A × ((P B) -> False)) ;;
+                     tmPrint "done").
 Check "proof".
 Next Obligation.
-Set Printing Universes. compute. unshelve econstructor. exists (bool:Type; fun _=> unit:Type).
-
-simple refine (existᶠ · _ · _ · _ · _).
-exact (bool:Type; fun _=> unit:Type).
-simple refine (existᶠ · _ · _ · _ · _).
-exact (unit:Type; fun _ => bool:Type).
-simple refine (existᶠ · _ · _ · _ · _).
-- simple refine (existᶠ · _ · _ · _ · _).
-  exists π2. exact π1.
-  simple refine (existᶠ · _ · _ · _ · _).
-  exists π2. exact π1.
-  simple refine (existᶠ · _ · _ · _ · _);
-    cbn; unshelve econstructor; reflexivity.
-- simple refine (existᶠ · _ · _ · _ · _).
-  exact HasTwoElFstComponentᵗ.
-  simple refine (existᶠ · _ · _ · _ · _).
-  + cbn. refine (_; tt). exists true. exists false.
-    discriminate 1.
-  + compute.
-    split; (intro p;
-            destruct p as [p _];
-            destruct p as [[] [[] p]];
-            contradiction p; reflexivity).
+  unshelve econstructor.
+  - exists (bool; fun _=> unit).
+    exists (unit; fun _=> bool).
+    cbn. unshelve econstructor.
+    + unshelve econstructor.
+      unshelve econstructor.
+      exists (fun _ => tt). exact pr1.
+      unshelve econstructor.
+      exists pr2. exact (fun _ => tt).
+      split; [|intros [[] x]; reflexivity].
+      unshelve econstructor; [reflexivity|].
+      intros [x []]; reflexivity.
+      cbn. intros [[] x]; reflexivity.
+    + unshelve econstructor.
+      exists (fun T => exists (x y : T.1), x = y -> False). exact (fun _ _ => unit).
+      cbn; split.
+      refine ((true; (false; _)); tt). intro e; inversion e.
+      intros [[[] [[] H]] _]. apply H; reflexivity.
+  - cbn. intros [[[] [[] H]] _]. apply H; reflexivity.
 Defined.
-
-Check "ok!".
-
-
-
-
-
-
-
-
-
-
-
-
-Definition mkTYPE (A₀ : Type) (Aᴿ : A₀ -> Type) : El Tyᵗ :=
-  @mk_sig Type (fun A₀ => A₀ -> Type) A₀ Aᴿ.
-
-Definition Prodᶠ (A : El Tyᵗ) (B : El A -> El Tyᵗ) : El Tyᵗ :=
-  mkTYPE
-    (forall x : El A, (B x).1)
-    (fun f₀ => forall x : El A, (B x).2 (f₀ x)).
-
-Notation "A →ᶠ B" := (Prodᶠ A (fun _ => B)) (at level 99, right associativity, B at level 200).
-Notation "'Πᶠ'  x .. y , P" := (Prodᶠ _ (fun x => .. (Prodᶠ _ (fun y => P)) ..))
-  (at level 200, x binder, y binder, right associativity).
-
-Definition Lamᶠ {A : El Tyᵗ} {B : El A -> El Tyᵗ} (f : forall x : El A, El (B x)) : El (Prodᶠ A B).
-Proof.
-unshelve refine (_ ; _).
-+ refine (fun x => (f x).1).
-+ refine (fun x => (f x).2).
-Defined.
-
-Notation "'λᶠ'  x .. y , t" := (Lamᶠ (fun x => .. (Lamᶠ (fun y => t)) ..))
-  (at level 200, x binder, y binder, right associativity).
-
-Definition Appᶠ {A B} (f : El (Prodᶠ A B)) (x : El A) : El (B x).
-Proof.
-unshelve refine (_ ; _).
-+ refine (f.1 x).
-+ refine (f.2 x).
-Defined.
-
-Notation "t · u" := (Appᶠ t u) (at level 64, left associativity).
-
-
-Definition sigmaᵀ (A : El Tyᵗ) (P : El (A →ᶠ Tyᵗ)) :=
-  sigma (El A) (fun x => El (P · x)).
-
-Eval compute in sigmaᵀ.
-Definition existᵀ (A : El Tyᵗ) (P : El (A →ᶠ Tyᵗ))
-           (x : El A) (y : El (P · x)) : sigmaᵀ A P
-  := mk_sig x y.
-
-Inductive sigmaᴿ (A : El Tyᵗ) (P : El (A →ᶠ Tyᵗ)) : sigmaᵀ A P -> Type :=
-| existᴿ : forall (x : El A) (y : El (P · x)), sigmaᴿ A P (existᵀ A P x y).
-
-Goal forall (A : El Tyᵗ) (P : El (A →ᶠ Tyᵗ)) x, sigmaᴿ A P x.
-destruct x; constructor .
-Defined.
-
-Definition sigmaᶠ : El (Πᶠ (A : El Tyᵗ) (P : El (A →ᶠ Tyᵗ)), Tyᵗ).
-Proof.
-refine (λᶠ A P, _).
-unshelve refine (mkTYPE _ (sigmaᴿ A P)).
-Defined.
-
-Definition existᶠ : El (Πᶠ (A : El Tyᵗ) (P : El (A →ᶠ Tyᵗ)) (x : El A) (y : El (P · x)),
-  sigmaᶠ · A · P).
-Proof.
-refine (λᶠ A P x y, _).
-refine (mk_sig (existᵀ A P x y) (existᴿ A P x y)).
-Defined.
-
-
-Inductive paths2 (A : El Tyᵗ) (x : El A) :
-  forall (y : El A), (π1 x) = (π1 y) -> Type :=
-| refl2 : paths2 A x x 1.
-
-
-Definition pathsᶠ : El (Πᶠ (A : El Tyᵗ), A →ᶠ A →ᶠ Tyᵗ).
-Proof.
-refine (λᶠ A x y, _).
-unshelve refine (mkTYPE _ _).
-+ refine (paths x.1 y.1).
-+ refine (paths2 A x y).
-Defined.
-
-Definition reflᶠ : El (Πᶠ (A : El Tyᵗ) (x : El A), pathsᶠ · A · x · x).
-Proof.
-refine (λᶠ A x, _).
-unshelve refine (_; refl2 A x).
-Defined.
-
-Definition Falseᶠ : El Tyᵗ.
-  exists False. exact (fun _ => False).
-Defined.
-  
-
-Quote Recursively Definition sigma_prog := @sigma.
-Quote Recursively Definition paths_prog := @paths.
-Quote Recursively Definition false_prog := @False.
-Definition sigma_decl := Eval compute in
-      lookup_mind_decl "Translations.sigma.sigma" (fst sigma_prog).
-Definition paths_decl := Eval compute in
-      lookup_mind_decl "Translations.MiniHoTT_paths.paths" (fst paths_prog).
-Definition false_decl := Eval compute in
-      lookup_mind_decl "Coq.Init.Logic.False" (fst false_prog).
-
-
-Definition ΣE : option tsl_context :=
-  sd <- sigma_decl ;;
-  ed <- paths_decl ;;
-  fd <- false_decl ;;
-  let Σ' := [InductiveDecl "Coq.Init.Logic.False" fd;
-            InductiveDecl "Translations.MiniHoTT_paths.paths" ed;
-            InductiveDecl "Translations.sigma.sigma" sd] in
-  let Σ' := reconstruct_global_context Σ' in
-  let E' := [(IndRef (mkInd "Translations.sigma.sigma" 0),
-              tConst "sigmaᶠ" []);
-             (ConstructRef (mkInd "Translations.sigma.sigma" 0) 0,
-              tConst "existᶠ" []);
-             (IndRef (mkInd "Translations.MiniHoTT_paths.paths" 0), tConst "pathsᶠ" []);
-             (IndRef (mkInd "Coq.Init.Logic.False" 0), tConst "Falseᶠ" [])
-            ] in
-  ret (Σ', E').
-
-Definition HasTwoElFstComponentᵗ : El (Tyᵗ →ᶠ Tyᵗ)
-  := λᶠ (T : El Tyᵗ), mkTYPE (exists (x y : T.1), x = y -> False) (fun _ => unit).
-
-
