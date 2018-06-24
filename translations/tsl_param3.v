@@ -259,6 +259,7 @@ Next Obligation.
 Defined.
 
 
+(* 244s (~ 4 min) to execute *)
 Check "go".
 Time
 Run TemplateProgram (ΣE <- tTranslate TC6 "equiv" ;;
