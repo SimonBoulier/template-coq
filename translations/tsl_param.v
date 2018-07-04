@@ -335,71 +335,70 @@ Module Axioms.
   Proof.
     unfold Funext, Funextᵗ.
     intros h A Aᵗ B Bᵗ f fᵗ g gᵗ.
-    unshelve eapply isequiv_adjointify.
-    apply eq_eqᵗ.
-    apply h; intro x.
-    apply h; intro xᵗ.
-    specialize (H x xᵗ).
-    apply eqᵗ_eq in H.
-    refine (_ @ H).
-    rewrite !transport_forall_constant.
-    rewrite transport_compose.
-    eapply ap10. eapply ap.
-    rewrite ap_apply_lD.
+    (* unshelve eapply isequiv_adjointify. *)
+    (* apply eq_eqᵗ. *)
+    (* apply h; intro x. *)
+    (* apply h; intro xᵗ. *)
+    (* specialize (H x xᵗ). *)
+    (* apply eqᵗ_eq in H. *)
+    (* refine (_ @ H). *)
+    (* rewrite !transport_forall_constant. *)
+    (* rewrite transport_compose. *)
+    (* eapply ap10. eapply ap. *)
+    (* rewrite ap_apply_lD. *)
   Abort.
 
+End Axioms.  
 
-  
+(* eq_eqᵗ  *)
+(* Definition isequiv (A B : Type) (f : A -> B) := *)
+(*   { g : B -> A & (forall x, g (f x) = x) * (forall y, f (g y) = y)}%type. *)
 
-eq_eqᵗ 
-Definition isequiv (A B : Type) (f : A -> B) :=
-  { g : B -> A & (forall x, g (f x) = x) * (forall y, f (g y) = y)}%type.
+(* Definition equiv_id A : isequiv A A (fun x => x). *)
+(*   unshelve econstructor. exact (fun y => y). *)
+(*   split; reflexivity. *)
+(* Defined. *)
 
-Definition equiv_id A : isequiv A A (fun x => x).
-  unshelve econstructor. exact (fun y => y).
-  split; reflexivity.
-Defined.
+(* Run TemplateProgram (TC <- tTranslate [] "sigma" ;; *)
+(*                      TC <- tTranslate TC "eq" ;; *)
+(*                      TC <- tTranslate TC "isequiv" ;; *)
+(*                      TC <- tTranslate TC "equiv_id" ;; *)
+(*                      tmDefinition "TC" TC). *)
 
-Run TemplateProgram (TC <- tTranslate [] "sigma" ;;
-                     TC <- tTranslate TC "eq" ;;
-                     TC <- tTranslate TC "isequiv" ;;
-                     TC <- tTranslate TC "equiv_id" ;;
-                     tmDefinition "TC" TC).
+(* Quote Definition eq_rect_Type_ := (forall (A : Type) (x : A) (P : A -> Type), *)
+(* P x -> forall y : A, x = y -> P y). *)
+(* Make Definition eq_rect_Typeᵗ :=  ltac:(let t:= eval compute in (tsl_rec1 TC eq_rect_Type_) in exact t). *)
 
-Quote Definition eq_rect_Type_ := (forall (A : Type) (x : A) (P : A -> Type),
-P x -> forall y : A, x = y -> P y).
-Make Definition eq_rect_Typeᵗ :=  ltac:(let t:= eval compute in (tsl_rec1 TC eq_rect_Type_) in exact t).
+(* Lemma eq_rectᵗ : eq_rect_Typeᵗ eq_rect. *)
+(*   compute. intros A Aᵗ x xᵗ P Pᵗ X X0 y yᵗ H H0. *)
+(*     by destruct H0. *)
+(* Defined. *)
 
-Lemma eq_rectᵗ : eq_rect_Typeᵗ eq_rect.
-  compute. intros A Aᵗ x xᵗ P Pᵗ X X0 y yᵗ H H0.
-    by destruct H0.
-Defined.
+(* Definition TC' := (ConstRef "Coq.Init.Logic.eq_rect", tConst "eq_rectᵗ" []) :: TC. *)
 
-Definition TC' := (ConstRef "Coq.Init.Logic.eq_rect", tConst "eq_rectᵗ" []) :: TC.
+(* Definition eq_to_iso A B : A = B -> exists f, isequiv A B f. *)
+(*   refine (eq_rect _ (fun B => exists f : A -> B, isequiv A B f) _ _). *)
+(*   econstructor. *)
+(*   eapply equiv_id. *)
+(* Defined. *)
 
-Definition eq_to_iso A B : A = B -> exists f, isequiv A B f.
-  refine (eq_rect _ (fun B => exists f : A -> B, isequiv A B f) _ _).
-  econstructor.
-  eapply equiv_id.
-Defined.
+(* Definition UA := forall A B, isequiv _ _ (eq_to_iso A B). *)
 
-Definition UA := forall A B, isequiv _ _ (eq_to_iso A B).
+(* Run TemplateProgram (TC <- tTranslate TC' "eq_to_iso" ;; *)
+(*                      tTranslate TC "UA"). *)
 
-Run TemplateProgram (TC <- tTranslate TC' "eq_to_iso" ;;
-                     tTranslate TC "UA").
+(* Arguments isequiv {A B} _. *)
+(* Arguments isequivᵗ {_ _ _ _} _ _. *)
+(* Arguments eqᵗ {A Aᵗ x xᵗ H} _ _. *)
 
-Arguments isequiv {A B} _.
-Arguments isequivᵗ {_ _ _ _} _ _.
-Arguments eqᵗ {A Aᵗ x xᵗ H} _ _.
+(* Axiom ua : UA. *)
 
-Axiom ua : UA.
-
-Goal UAᵗ ua.
-  intros A Aᵗ B Bᵗ.
-  unshelve econstructor.
-  - intros [f e] []. clear f e.
-    assert (forall H, isequiv (π1ᵗ H)). {
-      destruct π2ᵗ. destruct π2ᵗ.
-      intro x. unshelve econstructor.
-      by refine (fun y => eq_rect _ Aᵗ (π1ᵗ0 _ y) _ _).
-      split. { intro.
+(* Goal UAᵗ ua. *)
+(*   intros A Aᵗ B Bᵗ. *)
+(*   unshelve econstructor. *)
+(*   - intros [f e] []. clear f e. *)
+(*     assert (forall H, isequiv (π1ᵗ H)). { *)
+(*       destruct π2ᵗ. destruct π2ᵗ. *)
+(*       intro x. unshelve econstructor. *)
+(*       by refine (fun y => eq_rect _ Aᵗ (π1ᵗ0 _ y) _ _). *)
+(*       split. { intro. *)

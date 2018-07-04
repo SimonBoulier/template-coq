@@ -268,6 +268,7 @@ Module Axioms.
 
   Open Scope prod_scope.
   Run TemplateProgram (TC <- tTranslateRec eqTC (wFunext -> False) ;;
+                       tmDefinition "eqTC'" TC ;;
                        tImplement TC "notwFunext" (wFunext -> False)).
   Next Obligation.
     tIntro H.
@@ -280,15 +281,17 @@ Module Axioms.
   Definition wUnivalence
     := forall A B, Equiv A B -> A = B.
  
-
-  Fail Run TemplateProgram (TC <- tTranslateRec eqTC (wUnivalence -> False) ;;
-                       tImplement TC "notwUnivalence" (wUnivalence -> False)).
+  Run TemplateProgram (TC <- tTranslate eqTC' "idpath" ;;
+                            TC <- tImplementExisting TC "paths_ind" ;;
+                            tmDefinition "eqTC''" TC).
   Next Obligation.
-    tIntro H.
-    tSpecialize H unit. tSpecialize H (fun _ => unit; true). 
-    tSpecialize H (fun x => x; true). tSpecialize H (fun x => x; false). 
-    tSpecialize H (fun x => eq_reflᵗ _ _; true).
-    inversion H. 
+    tIntro A. tIntro a. tIntro P. tIntro t.
+    tIntro y. tIntro p. destruct p. exact t.
   Defined.
 
-  
+  Run TemplateProgram (TC <- tTranslateRec eqTC'' (wUnivalence -> False) ;;
+                       tImplement TC "notwUnivalence" (wUnivalence -> False)).
+  Next Obligation.
+  Admitted.
+
+End Axioms.
