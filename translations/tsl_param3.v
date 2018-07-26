@@ -4,7 +4,6 @@ From Translations Require Import translation_utils.
 Import String Lists.List.ListNotations MonadNotation.
 Open Scope list_scope. Open Scope string_scope.
 
-(* Local Existing Instance config.default_checker_flags. *)
 Require Import MiniHoTT_paths.
 
 Reserved Notation "'tsl_ty_param'".
@@ -16,7 +15,8 @@ Definition pair (typ1 typ2 t1 t2 : term) : term
   := tApp tPair [ typ1 ; typ2 ; t1 ; t2].
 Definition pack (t u : term) : term
   := tApp tSigma [ t ; u ].
-Definition sigma_ind := Eval compute in match tSigma with tInd i _ => i | _ =>  mkInd "bug: sigma not an inductive"%string 0 end.
+Definition sigma_ind := Eval compute in
+  match tSigma with tInd i _ => i | _ =>  mkInd "bug: sigma not an inductive" 0 end.
 Definition proj1 (t : term) : term
   := tProj (sigma_ind, 2, 0) t.
 Definition proj2 (t : term) : term
@@ -37,15 +37,18 @@ Local Instance tit : checker_flags
   := {| check_univs := false |}.
 
 (* if b it is the first translation, else the second *)
-Fixpoint tsl_rec (fuel : nat) (Σ : global_context) (E : tsl_table) (Γ : context) (b : bool) (t : term) {struct fuel}
-  : tsl_result term :=
+Fixpoint tsl_rec (fuel : nat) (Σ : global_context) (E : tsl_table) (Γ : context)
+         (b : bool) (t : term) {struct fuel} : tsl_result term :=
   match fuel with
   | O => raise NotEnoughFuel
   | S fuel =>
   match t with
   | tRel n => ret (proj b (tRel n))
-  | tSort s => if b then ret (tSort s)
-              else ret (tLambda (nNamed "A") (tSort s) (tProd nAnon (tRel 0) (tSort s)))
+
+  | tSort s =>
+    if b then ret (tSort s)
+    else ret (tLambda (nNamed "A") (tSort s) (tProd nAnon (tRel 0) (tSort s)))
+
   | tCast t c A => if b then
                     t1 <- tsl_rec fuel Σ E Γ true t ;;
                     A1 <- tsl_rec fuel Σ E Γ true A ;;
@@ -55,28 +58,34 @@ Fixpoint tsl_rec (fuel : nat) (Σ : global_context) (E : tsl_table) (Γ : contex
                     t2 <- tsl_rec fuel Σ E Γ false t ;;
                     A2 <- tsl_rec fuel Σ E Γ false A ;;
                     ret (tCast t2 c (tApp A2 [t1]))
-  | tProd n A B => if b then
-                    A' <- tsl_ty_param fuel Σ E Γ A ;;
-                    B1 <- tsl_rec fuel Σ E (Γ ,, vass n A) true B ;;
-                    ret (tProd n A' B1)
-                  else
-                    A' <- tsl_ty_param fuel Σ E Γ A ;;
-                    B1 <- tsl_rec fuel Σ E (Γ ,, vass n A) true B ;;
-                    B2 <- tsl_rec fuel Σ E (Γ ,, vass n A) false B ;;
-                    ret (tLambda (nNamed "f") (tProd n A' B1)
-                                 (tProd n (lift 1 0 A')
-                                        (tApp (lift 1 1 B2)
-                                              [tApp (tRel 1) [tRel 0]])))
+
+  | tProd n A B =>
+    if b then
+      A' <- tsl_ty_param fuel Σ E Γ A ;;
+         B1 <- tsl_rec fuel Σ E (Γ ,, vass n A) true B ;;
+         ret (tProd n A' B1)
+    else
+      A' <- tsl_ty_param fuel Σ E Γ A ;;
+      B1 <- tsl_rec fuel Σ E (Γ ,, vass n A) true B ;;
+      B2 <- tsl_rec fuel Σ E (Γ ,, vass n A) false B ;;
+      ret (tLambda (nNamed "f") (tProd n A' B1)
+                   (tProd n (lift 1 0 A')
+                          (tApp (lift 1 1 B2)
+                                [tApp (tRel 1) [tRel 0]])))
+
   | tLambda n A t => A' <- tsl_ty_param fuel Σ E Γ A ;;
                     t' <- tsl_rec fuel Σ E (Γ ,, vass n A) b t ;;
                     ret (tLambda n A' t')
+
   | tLetIn n t A u => t' <- tsl_term fuel Σ E Γ t ;;
                      A' <- tsl_ty_param fuel Σ E Γ A ;;
                      u' <- tsl_rec fuel Σ E (Γ ,, vdef n t A) b u ;;
                      ret (tLetIn n t' A' u')
+
   | tApp t u => t' <- tsl_rec fuel Σ E Γ b t ;;
                u' <- monad_map (tsl_term fuel Σ E Γ) u ;;
                ret (tApp t' u')
+
   | tConst _ _ as t
   | tInd _ _ as t
   | tConstruct _ _ _ as t => t' <- tsl_term fuel Σ E Γ t ;;
@@ -84,32 +93,28 @@ Fixpoint tsl_rec (fuel : nat) (Σ : global_context) (E : tsl_table) (Γ : contex
   | _ => raise TranslationNotHandeled
   end
   end
-with tsl_term  (fuel : nat) (Σ : global_context) (E : tsl_table) (Γ : context) (t : term) {struct fuel}
-  : tsl_result term :=
+
+with tsl_term  (fuel : nat) (Σ : global_context) (E : tsl_table) (Γ : context)
+               (t : term) {struct fuel} : tsl_result term :=
   match fuel with
   | O => raise NotEnoughFuel
   | S fuel =>
   match t with
   | tRel n => ret (tRel n)
-  | tSort s => ret (pair (tSort []) (tLambda (nNamed "A") (tSort []) (tProd nAnon (tRel 0) (tSort []))) (tSort s) (tLambda (nNamed "A") (tSort s) (tProd nAnon (tRel 0) (tSort s))))
+
+  | tSort s =>
+    ret (pair (tSort [])
+              (tLambda (nNamed "A") (tSort []) (tProd nAnon (tRel 0) (tSort [])))
+              (tSort s)
+              (tLambda (nNamed "A") (tSort s) (tProd nAnon (tRel 0) (tSort s))))
+
   | tCast t c A => t' <- tsl_term fuel Σ E Γ t ;;
                   A' <- tsl_ty_param fuel Σ E Γ A ;;
                   ret (tCast t' c A')
-  | tConst s univs =>
-    match lookup_tsl_table E (ConstRef s) with
-    | Some t => ret t
-    | None => raise (TranslationNotFound s)
-    end
-  | tInd i univs =>
-    match lookup_tsl_table E (IndRef i) with
-    | Some t => ret t
-    | None => raise (TranslationNotFound (string_of_gref (IndRef i)))
-    end
-  | tConstruct i n univs =>
-    match lookup_tsl_table E (ConstructRef i n) with
-    | Some t => ret t
-    | None => raise (TranslationNotFound (string_of_gref (ConstructRef i n)))
-    end
+
+  | tConst s univs => lookup_tsl_table' E (ConstRef s)
+  | tInd i univs => lookup_tsl_table' E (IndRef i)
+  | tConstruct i n univs => lookup_tsl_table' E (ConstructRef i n)
   | t => match infer Σ Γ t with
          | Checked typ => let typ := refresh_universes typ in
                          t1 <- tsl_rec fuel Σ E Γ true t ;;
@@ -131,7 +136,7 @@ where "'tsl_ty_param'" := (fun fuel Σ E Γ t =>
 Instance tsl_param : Translation
   := {| tsl_id := tsl_ident ;
         tsl_tm := fun ΣE => tsl_term fuel (fst ΣE) (snd ΣE) [] ;
-        tsl_ty := fun ΣE => tsl_ty_param fuel (fst ΣE) (snd ΣE) [] ;
+        tsl_ty := Some (fun ΣE => tsl_ty_param fuel (fst ΣE) (snd ΣE) []) ;
         tsl_ind := todo |}.
 
 
@@ -141,12 +146,12 @@ Notation "'El' A" := (@sigT A.1 A.2) (at level 20).
 
 
 Definition Ty := Type.
-Run TemplateProgram (tTranslate emptyTC "Ty").
+Run TemplateProgram (Translate emptyTC "Ty").
 Check Tyᵗ : El Tyᵗ.
 
 
 
-Run TemplateProgram (TC <- tImplementExisting emptyTC "sigT" ;;
+Run TemplateProgram (TC <- ImplementExisting emptyTC "sigT" ;;
                      tmDefinition "TC" TC).
 Next Obligation.
   unshelve econstructor.
@@ -157,7 +162,7 @@ Next Obligation.
   - cbn; intros A B. refine (fun x => B.2 x.1 x.2).
 Defined.
 
-Run TemplateProgram (TC <- tImplementExisting TC "existT" ;;
+Run TemplateProgram (TC <- ImplementExisting TC "existT" ;;
                      tmDefinition "TC'" TC).
 Next Obligation.
   unshelve econstructor.
@@ -168,7 +173,7 @@ Next Obligation.
   - cbn; intros A B x y. exact y.2.
 Defined.
 
-Time Run TemplateProgram (TC <- tImplementExisting TC' "sigT_ind" ;;
+Time Run TemplateProgram (TC <- ImplementExisting TC' "sigT_ind" ;;
                           tmDefinition "TC''" TC).
 Check "yo".
 Next Obligation.
@@ -181,7 +186,7 @@ Next Obligation.
 Defined.
 
 
-Run TemplateProgram (TC <- tImplementExisting TC'' "paths" ;;
+Run TemplateProgram (TC <- ImplementExisting TC'' "paths" ;;
                      tmDefinition "TC3" TC).
 Next Obligation.
   unshelve econstructor.
@@ -190,13 +195,13 @@ Next Obligation.
 Defined.
 
 
-Run TemplateProgram (TC <- tImplementExisting TC3 "idpath" ;;
+Run TemplateProgram (TC <- ImplementExisting TC3 "idpath" ;;
                      tmDefinition "TC4" TC).
 Next Obligation.
   unshelve econstructor; reflexivity.
 Defined.
 
-Run TemplateProgram (TC <- tImplementExisting TC4 "paths_ind" ;;
+Run TemplateProgram (TC <- ImplementExisting TC4 "paths_ind" ;;
                      tmDefinition "TC5" TC).
 Next Obligation.
   unshelve econstructor.
@@ -210,7 +215,7 @@ Defined.
 Definition Funext :=
   forall A (B : A -> Type) (f g : forall x, B x), (forall x, paths (f x) (g x)) -> paths f g.
 
-Run TemplateProgram (tTranslate TC5 "Funext").
+Run TemplateProgram (Translate TC5 "Funext").
 
 Goal Funext -> El Funextᵗ.
   simpl. intro H. unshelve econstructor.
@@ -226,7 +231,7 @@ Admitted.
 
 
 Definition FALSE := forall X, X.
-Run TemplateProgram (tTranslate emptyTC "FALSE").
+Run TemplateProgram (Translate emptyTC "FALSE").
 
 Proposition consistency_preservation : El FALSEᵗ -> FALSE.
   compute.
@@ -237,7 +242,7 @@ Defined.
 
 Definition UIP := forall A (x y : A) (p q : paths x y), paths p q.
 
-Run TemplateProgram (tTranslate TC5 "UIP").
+Run TemplateProgram (Translate TC5 "UIP").
 
 Proposition uip_preservation : UIP -> El UIPᵗ.
   simpl. intro H. unshelve econstructor.
@@ -251,7 +256,7 @@ Definition equiv (A B : Type) : Type :=
   exists (f : A -> B) (g : B -> A),
     (forall x, paths (g (f x)) x) × (forall x, paths (f (g x)) x).
 
-Run TemplateProgram (TC <- tImplementExisting TC5 "False" ;;
+Run TemplateProgram (TC <- ImplementExisting TC5 "False" ;;
                      tmDefinition "TC6" TC).
 Next Obligation.
   unshelve econstructor.
@@ -263,9 +268,9 @@ Defined.
 (* 244s (~ 4 min) to execute *)
 Check "go".
 Time
-Run TemplateProgram (ΣE <- tTranslate TC6 "equiv" ;;
+Run TemplateProgram (ΣE <- Translate TC6 "equiv" ;;
                      tmPrint "lo" ;;
-                     H <- tImplement ΣE "notUnivalence"
+                     H <- Implement ΣE "notUnivalence"
                      (exists A B, (equiv A B) × exists P, P A × ((P B) -> False)) ;;
                      tmPrint "done").
 Check "proof".

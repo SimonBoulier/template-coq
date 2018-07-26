@@ -111,12 +111,13 @@ Fixpoint tsl_rec1_app (app : option term) (E : tsl_table) (t : term) : term :=
   end.
 Definition tsl_rec1 := tsl_rec1_app None.
 
-Definition tsl_mind_body (E : tsl_table)
-           (kn kn' : kername) (mind : mutual_inductive_body) : tsl_table * list mutual_inductive_body.
+Definition tsl_mind_body (E : tsl_table) (mp : string) (kn : kername)
+           (mind : mutual_inductive_body) : tsl_table * list mutual_inductive_body.
   refine (_, [{| ind_npars := 2 * mind.(ind_npars);
                  ind_bodies := _;
                  ind_universes := mind.(ind_universes)|}]).  (* FIXME always ok? *)
-  - refine (fold_left_i (fun E i ind => _ :: _ ++ E)%list mind.(ind_bodies) []).
+  - refine (let kn' := tsl_kn tsl_ident kn mp in
+            fold_left_i (fun E i ind => _ :: _ ++ E)%list mind.(ind_bodies) []).
     + (* ind *)
       exact (IndRef (mkInd kn i), tInd (mkInd kn' i) []).
     + (* ctors *)
@@ -145,26 +146,20 @@ Definition tsl_mind_body (E : tsl_table)
 Defined.
 
 
-Run TemplateProgram (tm <- tmQuote (forall A, A -> A) ;;
-                     let tm' := tsl_rec1 [] tm in
-                     tmUnquote tm' >>= tmPrint).
+Run TemplateProgram (typ <- tmQuote (forall A, A -> A) ;;
+                     typ' <- tmEval all (tsl_rec1 [] typ) ;;
+                     tm <- tmQuote (fun A (x : A) => x) ;;
+                     tm' <- tmEval all (tsl_rec1 [] tm) ;;
+                     tmUnquote (tApp typ' [tm]) >>= print_nf).
 
-Run TemplateProgram (tm <- tmQuote (fun A (x : A) => x) ;;
-                     let tm' := tsl_rec1 [] tm in
-                     tmUnquote tm' >>= tmPrint).
-
-Goal ((fun f : forall A : Type, A -> A =>
-    forall (A : Type) (A0 : A -> Type) (H : A), A0 H -> A0 (f A H)) (fun A (x : A) => x)
-       = (forall (A : Type) (A0 : A -> Type) (x : A), A0 x -> A0 x)).
-reflexivity.
-Defined.
 
 
 Instance param : Translation :=
   {| tsl_id := tsl_ident ;
      tsl_tm := fun ΣE t => ret (tsl_rec1 (snd ΣE) t) ;
-     tsl_ty := fun '(Σ, E) t => todo "not meaningful here" ;
-     tsl_ind := fun ΣE kn kn' mind => ret (tsl_mind_body (snd ΣE) kn kn' mind) |}.
+     (* Implement and Implement Existing cannot be used with this translation *)
+     tsl_ty := None ;
+     tsl_ind := fun ΣE mp kn mind => ret (tsl_mind_body (snd ΣE) mp kn mind) |}.
 
 
 
@@ -172,22 +167,22 @@ Instance param : Translation :=
 
 
 Definition T := forall A, A -> A.
-Run TemplateProgram (tTranslate emptyTC "T").
+Run TemplateProgram (Translate emptyTC "T").
 
 
 Definition tm := ((fun A (x:A) => x) (Type -> Type) (fun x => x)).
-Run TemplateProgram (tTranslate emptyTC "tm").
+Run TemplateProgram (Translate emptyTC "tm").
 
-Run TemplateProgram (TC <- tTranslate emptyTC "nat" ;;
+Run TemplateProgram (TC <- Translate emptyTC "nat" ;;
                      tmDefinition "nat_TC" TC ).
 
-Run TemplateProgram (tTranslate nat_TC "pred").
+Run TemplateProgram (Translate nat_TC "pred").
 
 
 Module Id1.
   Definition ID := forall A, A -> A.
 
-  Run TemplateProgram (tTranslate emptyTC "ID").
+  Run TemplateProgram (Translate emptyTC "ID").
 
   Lemma param_ID_identity (f : ID)
     : IDᵗ f -> forall A x, f A x = x.
@@ -197,13 +192,13 @@ Module Id1.
   Qed.
 
   Definition toto := fun n : nat => (fun y => 0) (fun _ : Type =>  n).
-  Run TemplateProgram (tTranslate nat_TC "toto").
+  Run TemplateProgram (Translate nat_TC "toto").
 
 
   Definition my_id : ID :=
     let n := 12 in (fun (_ : nat) y => y) 4 (fun A x => (fun _ : nat => x) n).
 
-  Run TemplateProgram (tTranslate nat_TC "my_id").
+  Run TemplateProgram (Translate nat_TC "my_id").
 
 
   Definition free_thm_my_id : forall A x, my_id A x = x
@@ -214,8 +209,7 @@ End Id1.
 Module Id2.
   Definition ID := forall A x y (p : x = y :> A), x = y.
 
-  Run TemplateProgram (TC <- tTranslate emptyTC "eq" ;;
-                       TC <- tTranslate TC "ID" ;;
+  Run TemplateProgram (TC <- TranslateRec emptyTC ID ;;
                        tmDefinition "TC" TC).
 
 
@@ -232,9 +226,7 @@ Module Id2.
   Definition myf : ID
     := fun A x y p => eq_trans (eq_trans p (eq_sym p)) p.
 
-  Run TemplateProgram (TC <- tTranslate TC "eq_sym" ;;
-                       TC <- tTranslate TC "eq_trans" ;;
-                       tTranslate TC "myf").
+  Run TemplateProgram (TranslateRec TC myf).
 
   Definition free_thm_myf : forall A x y p, myf A x y p = p
     := param_ID_identity myf myfᵗ.
@@ -246,15 +238,15 @@ End Id2.
 
 Module Vectors.
   Import Vector.
-  Run TemplateProgram (tTranslate nat_TC "t").
+  Run TemplateProgram (Translate nat_TC "t").
 End Vectors.
 
 Require Import Even.
-Run TemplateProgram (tTranslate nat_TC "even").
+Run TemplateProgram (Translate nat_TC "even").
 
 Definition rev_type := forall A, list A -> list A.
-Run TemplateProgram (TC <- tTranslate emptyTC "list" ;;
-                     TC <- tTranslate TC "rev_type" ;;
+Run TemplateProgram (TC <- Translate emptyTC "list" ;;
+                     TC <- Translate TC "rev_type" ;;
                      tmDefinition "list_TC" TC ).
 
 
@@ -267,7 +259,7 @@ Module Axioms.
 
   Run TemplateProgram (tmQuoteRec UIP >>= tmPrint).
 
-  Run TemplateProgram (TC <- tTranslateRec emptyTC UIP ;;
+  Run TemplateProgram (TC <- TranslateRec emptyTC UIP ;;
                        tmDefinition "eqTC" TC).
 
   Definition eqᵗ_eq {A Aᵗ x xᵗ y yᵗ p}
@@ -306,7 +298,7 @@ Module Axioms.
     := forall A (B : A -> Type) (f g : forall x, B x), (forall x, f x = g x) -> f = g.
  
 
-  Run TemplateProgram (tTranslate eqTC "wFunext").
+  Run TemplateProgram (Translate eqTC "wFunext").
 
   Theorem wFunext_provably_parametric : forall h : wFunext, wFunextᵗ h.
   Proof.
@@ -324,81 +316,148 @@ Module Axioms.
     rewrite ap_apply_lD.
   Abort.
 
-  Definition Funext
-    := forall A B (f g : forall x : A, B x), IsEquiv (@apD10 A B f g).
+  (* Definition Funext *)
+  (*   := forall A B (f g : forall x : A, B x), IsEquiv (@apD10 A B f g). *)
 
-  Run TemplateProgram (TC <- tTranslateRec eqTC Funext ;;
-                   tmDefinition "eqTC'" TC).
+  (* Run TemplateProgram (TC <- TranslateRec eqTC Funext ;; *)
+  (*                  tmDefinition "eqTC'" TC). *)
 
 
-  Theorem wFunext_provably_parametric : forall h : Funext, Funextᵗ h.
+  (* Theorem Funext_provably_parametric : forall h : Funext, Funextᵗ h. *)
+  (* Proof. *)
+  (*   unfold Funext, Funextᵗ. *)
+  (*   intros h A Aᵗ B Bᵗ f fᵗ g gᵗ. *)
+  (*   (* unshelve eapply isequiv_adjointify. *) *)
+  (*   (* apply eq_eqᵗ. *) *)
+  (*   (* apply h; intro x. *) *)
+  (*   (* apply h; intro xᵗ. *) *)
+  (*   (* specialize (H x xᵗ). *) *)
+  (*   (* apply eqᵗ_eq in H. *) *)
+  (*   (* refine (_ @ H). *) *)
+  (*   (* rewrite !transport_forall_constant. *) *)
+  (*   (* rewrite transport_compose. *) *)
+  (*   (* eapply ap10. eapply ap. *) *)
+  (*   (* rewrite ap_apply_lD. *) *)
+  (* Abort. *)
+
+
+  Definition equiv_paths {A B} (p : A = B) : A <~> B
+    := transport (Equiv A) p equiv_idmap.
+
+  Definition Univalence := forall A B (p : A = B), IsEquiv (equiv_paths p).
+
+  Definition coe {A B} (p : A = B) : A -> B := transport idmap p.
+
+  Definition Univalence' := forall A B (p : A = B), IsEquiv (coe p).
+
+  Run TemplateProgram (TC <- TranslateRec eqTC Univalence' ;;
+                          tmDefinition "eqTC'" TC).
+
+
+  Definition UU' : Univalence' -> Univalence.
+    intros H A B []; exact (H A A 1).
+  Defined.
+
+  Run TemplateProgram (TC <- TranslateRec eqTC' UU' ;;
+                          tmDefinition "eqTC''" TC).
+
+  (* Goal (Univalence -> Univalence') * (Univalence' -> Univalence). *)
+  (*   split; intros H A B []; exact (H A A 1). *)
+  (* Defined. *)
+
+  Lemma pathsᵗ_ok {A} {Aᵗ : A -> Type} {x y} {xᵗ : Aᵗ y} (p : x = y)
+    : pathsᵗ A Aᵗ x (transport Aᵗ p^ xᵗ) y xᵗ p.
   Proof.
-    unfold Funext, Funextᵗ.
-    intros h A Aᵗ B Bᵗ f fᵗ g gᵗ.
-    (* unshelve eapply isequiv_adjointify. *)
-    (* apply eq_eqᵗ. *)
-    (* apply h; intro x. *)
-    (* apply h; intro xᵗ. *)
-    (* specialize (H x xᵗ). *)
-    (* apply eqᵗ_eq in H. *)
-    (* refine (_ @ H). *)
-    (* rewrite !transport_forall_constant. *)
-    (* rewrite transport_compose. *)
-    (* eapply ap10. eapply ap. *)
-    (* rewrite ap_apply_lD. *)
-  Abort.
+    destruct p; reflexivity.
+  Defined.
 
-End Axioms.  
+  Lemma pathsᵗ_ok2 {A} {Aᵗ : A -> Type} {x y} {xᵗ : Aᵗ y} (p q : x = y) e r
+        (Hr : e # (pathsᵗ_ok p) = r)
+    : pathsᵗ (x = y) (pathsᵗ A Aᵗ x (transport Aᵗ p^ xᵗ) y xᵗ) p (pathsᵗ_ok p) q r e.
+    destruct e, p, Hr; reflexivity. 
+  Defined.
 
-(* eq_eqᵗ  *)
-(* Definition isequiv (A B : Type) (f : A -> B) := *)
-(*   { g : B -> A & (forall x, g (f x) = x) * (forall y, f (g y) = y)}%type. *)
+  Definition apᵗ_idmap  {A} {Aᵗ : A -> Type} {x y xᵗ yᵗ} (p : x = y)
+             (pᵗ : pathsᵗ A Aᵗ x xᵗ y yᵗ p)
+    : apᵗ A Aᵗ A Aᵗ idmap (fun u => idmap) x xᵗ y yᵗ p pᵗ = (ap_idmap p)^ # pᵗ.
+  Proof.
+    destruct pᵗ; reflexivity.
+  Defined.
 
-(* Definition equiv_id A : isequiv A A (fun x => x). *)
-(*   unshelve econstructor. exact (fun y => y). *)
-(*   split; reflexivity. *)
+  Definition U'U : Univalence -> Univalence'.
+    intros H A B []; exact (H A A 1).
+  Defined.
+
+  Theorem Univalence'_provably_parametric : forall h : Univalence', Univalence'ᵗ h.
+  Proof.
+    unfold Univalence', Univalence'ᵗ.
+    intros h A Aᵗ B Bᵗ p pᵗ.
+    set (h A B p).
+    destruct i as [g q1 q2 coh].
+    destruct pᵗ; cbn in *.
+    unshelve econstructor.
+    intros. refine ((q1 _)^ # _); assumption.
+    intros x xᵗ; cbn. apply pathsᵗ_ok.
+    intros x xᵗ; cbn. refine ((coh x @ ap_idmap _) # pathsᵗ_ok (q1 x)).
+    intros x xᵗ; cbn. eapply pathsᵗ_ok2.
+    set (coh x). set (q1 x) in *. set (q2 x) in *.
+    clearbody p p1 p0; clear; cbn in *.
+    set (g x) in *. clearbody a. 
+    rewrite transport_pp.
+    destruct p1. cbn in *.
+    match goal with
+    | |- ?XX = ?AA _ => set XX
+    end.
+    clearbody p1.
+    assert (1 = p0^) by (rewrite p; reflexivity).
+    destruct X; clear.
+    change (p1 = apᵗ A Aᵗ A Aᵗ idmap (fun u => idmap) a xᵗ a xᵗ eq_refl p1).
+    rewrite apᵗ_idmap. reflexivity.
+  Defined.
+
+  Definition Univalence_wFunext : Univalence -> wFunext.
+  Admitted.
+
+  Theorem Univalence_provably_parametric : forall h : Univalence, Univalenceᵗ h.
+    intro h. pose proof (Univalence'_provably_parametric (U'U h)).
+    apply UU'ᵗ in X. cbn in *.
+    refine (_ # X). clear.
+    pose proof (Univalence_wFunext h).
+    apply X; intro A.
+    apply X; intro B.
+    apply X; intros []. reflexivity.
+  Defined.
+End Axioms.
+
+
+
+
+
+(* Record IsEquiv' {A B} (f : A -> B) := BuildIsEquiv' *)
+(*   { equiv_inv' : B -> A; *)
+(*     eisretr' : Sect equiv_inv' f; *)
+(*     eissect' : Sect f equiv_inv'}. *)
+
+(* Definition IsEquiv_IsEquiv' {A B} (f : A -> B) *)
+(*   : IsEquiv' f -> IsEquiv f. *)
+(* Proof. *)
+(*   intros [g H1 H2]. unshelve eapply isequiv_adjointify; eassumption. *)
 (* Defined. *)
 
-(* Run TemplateProgram (TC <- tTranslate [] "sigma" ;; *)
-(*                      TC <- tTranslate TC "eq" ;; *)
-(*                      TC <- tTranslate TC "isequiv" ;; *)
-(*                      TC <- tTranslate TC "equiv_id" ;; *)
-(*                      tmDefinition "TC" TC). *)
-
-(* Quote Definition eq_rect_Type_ := (forall (A : Type) (x : A) (P : A -> Type), *)
-(* P x -> forall y : A, x = y -> P y). *)
-(* Make Definition eq_rect_Typeᵗ :=  ltac:(let t:= eval compute in (tsl_rec1 TC eq_rect_Type_) in exact t). *)
-
-(* Lemma eq_rectᵗ : eq_rect_Typeᵗ eq_rect. *)
-(*   compute. intros A Aᵗ x xᵗ P Pᵗ X X0 y yᵗ H H0. *)
-(*     by destruct H0. *)
+(* Definition IsEquiv'_IsEquiv {A B} (f : A -> B) *)
+(*   : IsEquiv f -> IsEquiv' f. *)
+(* Proof. *)
+(*   intros [g H1 H2 _]; econstructor; eassumption. *)
 (* Defined. *)
 
-(* Definition TC' := (ConstRef "Coq.Init.Logic.eq_rect", tConst "eq_rectᵗ" []) :: TC. *)
+(* Record Equiv' A B := *)
+(*   { equiv_fun' : A -> B ; *)
+(*     equiv_isequiv' : IsEquiv' equiv_fun' }. *)
 
-(* Definition eq_to_iso A B : A = B -> exists f, isequiv A B f. *)
-(*   refine (eq_rect _ (fun B => exists f : A -> B, isequiv A B f) _ _). *)
-(*   econstructor. *)
-(*   eapply equiv_id. *)
+(* Definition equiv_idmap' (A : Type) : Equiv' A A. *)
+(*   refine (Build_Equiv' A A idmap _). *)
+(*   unshelve econstructor. exact idmap. *)
+(*   all: intro; reflexivity. *)
 (* Defined. *)
 
-(* Definition UA := forall A B, isequiv _ _ (eq_to_iso A B). *)
-
-(* Run TemplateProgram (TC <- tTranslate TC' "eq_to_iso" ;; *)
-(*                      tTranslate TC "UA"). *)
-
-(* Arguments isequiv {A B} _. *)
-(* Arguments isequivᵗ {_ _ _ _} _ _. *)
-(* Arguments eqᵗ {A Aᵗ x xᵗ H} _ _. *)
-
-(* Axiom ua : UA. *)
-
-(* Goal UAᵗ ua. *)
-(*   intros A Aᵗ B Bᵗ. *)
-(*   unshelve econstructor. *)
-(*   - intros [f e] []. clear f e. *)
-(*     assert (forall H, isequiv (π1ᵗ H)). { *)
-(*       destruct π2ᵗ. destruct π2ᵗ. *)
-(*       intro x. unshelve econstructor. *)
-(*       by refine (fun y => eq_rect _ Aᵗ (π1ᵗ0 _ y) _ _). *)
-(*       split. { intro. *)
+(* Arguments equiv_idmap' {A} , A. *)

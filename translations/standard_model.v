@@ -27,12 +27,6 @@ Fixpoint kproj (k : nat) (t : term) :=
 Notation app0 := (fun t => subst_app t [tRel 0]).
 
 
-Definition lookup_tsl_table' E gr :=
-  match lookup_tsl_table E gr with
-  | Some t => ret t
-  | None => raise (TranslationNotFound (string_of_gref gr))
-  end.
-
 
 Fixpoint tsl (ΣE : tsl_context) (Γ : context) (t : term) {struct t}
   : tsl_result term :=
@@ -98,18 +92,22 @@ with tsl_ctx (ΣE : tsl_context) (Γ : context) {struct Γ} : tsl_result term :=
 Instance param : Translation :=
   {| tsl_id := tsl_ident ;
      tsl_tm := fun ΣE => tsl ΣE [] ;
-     tsl_ty := fun ΣE t => t' <- tsl ΣE [] t ;; ret (subst_app t' [ttt]) ;
+     tsl_ty := Some (fun ΣE t => t' <- tsl ΣE [] t ;; ret (subst_app t' [ttt])) ;
      tsl_ind := todo |}.
 
 (* Definition toto := ((fun A (x : A) => x) (Type : Type)). *)
-Definition toto := forall X, (X : Type).
-Run TemplateProgram (tTranslate emptyTC "toto").
+Definition toto := fun (f : forall A, A -> A) => f Type.
+Run TemplateProgram (Translate emptyTC "toto").
+Goal nat.
+  unshelve refine (let X := _ : totoᵗ = _ in _).
+  cbn.
 Print totoᵗ.
+Compute totoᵗ.
 Eval cbv delta beta in totoᵗ.
 
 Definition FALSE := forall X, X.
-Run TemplateProgram (TC <- tTranslate emptyTC "FALSE" ;;
-   tImplement TC "a" (forall (A : Type) (A0 : A -> Type) (x : A), FALSE -> A0 x)).
+Run TemplateProgram (TC <- Translate emptyTC "FALSE" ;;
+   Implement TC "a" (forall (A : Type) (A0 : A -> Type) (x : A), FALSE -> A0 x)).
 Next Obligation.
   compute in X. apply X.
 Defined.
@@ -122,22 +120,22 @@ Defined.
 
 
 Definition T := forall A, A -> A.
-Run TemplateProgram (tTranslate emptyTC "T").
+Run TemplateProgram (Translate emptyTC "T").
 
 
 Definition tm := ((fun A (x:A) => x) (Type -> Type) (fun x => x)).
-Run TemplateProgram (tTranslate emptyTC "tm").
+Run TemplateProgram (Translate emptyTC "tm").
 
-Run TemplateProgram (TC <- tTranslate emptyTC "nat" ;;
+Run TemplateProgram (TC <- Translate emptyTC "nat" ;;
                      tmDefinition "nat_TC" TC ).
 
-Run TemplateProgram (tTranslate nat_TC "pred").
+Run TemplateProgram (Translate nat_TC "pred").
 
 
 Module Id1.
   Definition ID := forall A, A -> A.
 
-  Run TemplateProgram (tTranslate emptyTC "ID").
+  Run TemplateProgram (Translate emptyTC "ID").
 
   Lemma param_ID_identity (f : ID)
     : IDᵗ f -> forall A x, f A x = x.
@@ -147,13 +145,13 @@ Module Id1.
   Qed.
 
   Definition toto := fun n : nat => (fun y => 0) (fun _ : Type =>  n).
-  Run TemplateProgram (tTranslate nat_TC "toto").
+  Run TemplateProgram (Translate nat_TC "toto").
 
 
   Definition my_id : ID :=
     let n := 12 in (fun (_ : nat) y => y) 4 (fun A x => (fun _ : nat => x) n).
 
-  Run TemplateProgram (tTranslate nat_TC "my_id").
+  Run TemplateProgram (Translate nat_TC "my_id").
 
 
   Definition free_thm_my_id : forall A x, my_id A x = x
@@ -164,8 +162,8 @@ End Id1.
 Module Id2.
   Definition ID := forall A x y (p : x = y :> A), x = y.
 
-  Run TemplateProgram (TC <- tTranslate emptyTC "eq" ;;
-                       TC <- tTranslate TC "ID" ;;
+  Run TemplateProgram (TC <- Translate emptyTC "eq" ;;
+                       TC <- Translate TC "ID" ;;
                        tmDefinition "TC" TC).
 
 
@@ -182,9 +180,9 @@ Module Id2.
   Definition myf : ID
     := fun A x y p => eq_trans (eq_trans p (eq_sym p)) p.
 
-  Run TemplateProgram (TC <- tTranslate TC "eq_sym" ;;
-                       TC <- tTranslate TC "eq_trans" ;;
-                       tTranslate TC "myf").
+  Run TemplateProgram (TC <- Translate TC "eq_sym" ;;
+                       TC <- Translate TC "eq_trans" ;;
+                       Translate TC "myf").
 
   Definition free_thm_myf : forall A x y p, myf A x y p = p
     := param_ID_identity myf myfᵗ.
@@ -196,15 +194,15 @@ End Id2.
 
 Module Vectors.
   Import Vector.
-  Run TemplateProgram (tTranslate nat_TC "t").
+  Run TemplateProgram (Translate nat_TC "t").
 End Vectors.
 
 Require Import Even.
-Run TemplateProgram (tTranslate nat_TC "even").
+Run TemplateProgram (Translate nat_TC "even").
 
 Definition rev_type := forall A, list A -> list A.
-Run TemplateProgram (TC <- tTranslate emptyTC "list" ;;
-                     TC <- tTranslate TC "rev_type" ;;
+Run TemplateProgram (TC <- Translate emptyTC "list" ;;
+                     TC <- Translate TC "rev_type" ;;
                      tmDefinition "list_TC" TC ).
 
 
@@ -217,7 +215,7 @@ Module Axioms.
 
   Run TemplateProgram (tmQuoteRec UIP >>= tmPrint).
 
-  Run TemplateProgram (TC <- tTranslateRec emptyTC UIP ;;
+  Run TemplateProgram (TC <- TranslateRec emptyTC UIP ;;
                        tmDefinition "eqTC" TC).
 
   Definition eqᵗ_eq {A Aᵗ x xᵗ y yᵗ p}
@@ -256,7 +254,7 @@ Module Axioms.
     := forall A (B : A -> Type) (f g : forall x, B x), (forall x, f x = g x) -> f = g.
  
 
-  Run TemplateProgram (tTranslate eqTC "wFunext").
+  Run TemplateProgram (Translate eqTC "wFunext").
 
   Theorem wFunext_provably_parametric : forall h : wFunext, wFunextᵗ h.
   Proof.
@@ -277,7 +275,7 @@ Module Axioms.
   Definition Funext
     := forall A B (f g : forall x : A, B x), IsEquiv (@apD10 A B f g).
 
-  Run TemplateProgram (TC <- tTranslateRec eqTC Funext ;;
+  Run TemplateProgram (TC <- TranslateRec eqTC Funext ;;
                    tmDefinition "eqTC'" TC).
 
 
@@ -310,10 +308,10 @@ Definition equiv_id A : isequiv A A (fun x => x).
   split; reflexivity.
 Defined.
 
-Run TemplateProgram (TC <- tTranslate [] "sigma" ;;
-                     TC <- tTranslate TC "eq" ;;
-                     TC <- tTranslate TC "isequiv" ;;
-                     TC <- tTranslate TC "equiv_id" ;;
+Run TemplateProgram (TC <- Translate [] "sigma" ;;
+                     TC <- Translate TC "eq" ;;
+                     TC <- Translate TC "isequiv" ;;
+                     TC <- Translate TC "equiv_id" ;;
                      tmDefinition "TC" TC).
 
 Quote Definition eq_rect_Type_ := (forall (A : Type) (x : A) (P : A -> Type),
@@ -335,8 +333,8 @@ Defined.
 
 Definition UA := forall A B, isequiv _ _ (eq_to_iso A B).
 
-Run TemplateProgram (TC <- tTranslate TC' "eq_to_iso" ;;
-                     tTranslate TC "UA").
+Run TemplateProgram (TC <- Translate TC' "eq_to_iso" ;;
+                     Translate TC "UA").
 
 Arguments isequiv {A B} _.
 Arguments isequivᵗ {_ _ _ _} _ _.

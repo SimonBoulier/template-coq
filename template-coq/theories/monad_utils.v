@@ -72,6 +72,9 @@ Section MonadOperations.
                      monad_fold_left f l x'
        end.
 
+  Definition monad_iter {A} (f : A -> T unit) (l : list A) : T unit
+    := monad_fold_left (fun _ => f) l tt.
+
 
   Fixpoint monad_map_i_aux {A B} (f : nat -> A -> T B) (n0 : nat) (l : list A) : T (list B)
     := match l with
